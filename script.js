@@ -1,4 +1,4 @@
-  var SCREEN_X = 640;
+  var SCREEN_X = 800;
   var SCREEN_Y = 480;
 
   var ZS = 500;
@@ -19,7 +19,7 @@
     this.rot_cos = 1;
     this.speed = 8;
     this.DIM = 25;
-    this.angle_speed = 0.002;
+    this.angle_speed = 0.004;
 
 
     for (var i = -this.DIM / 2; i < this.DIM / 2; i++) {
@@ -40,7 +40,7 @@
     }
     
     this.drawGrid = function (ctx){
-        ctx.strokeStyle = "lime";
+        ctx.strokeStyle = "limegreen";
         ctx.lineWidth = 2;
         for (var i = 0; i < this.DIM; i++) {
           var sp1 = this.points[i * this.DIM + 1];
@@ -71,11 +71,11 @@
     }
     
     this.rotateLeft = function (){ 
-      this.rot_ang = Math.min(this.rot_ang + this.angle_speed, Math.PI/2); 
+      this.rot_ang = Math.min(this.rot_ang + this.angle_speed, Math.PI/4); 
       this.updateTrig ();
     }
     this.rotateRight = function (){ 
-      this.rot_ang = Math.max(this.rot_ang - this.angle_speed, -Math.PI/2);
+      this.rot_ang = Math.max(this.rot_ang - this.angle_speed, -Math.PI/4);
       this.updateTrig ();
     }
     this.undoRotation = function (){
@@ -90,15 +90,15 @@
   }
 
   function Player (){
-    this.char_speed = 4;
-    this.char_size_x = 24;
-    this.char_size_y = 10;
+    this.char_speed = 6;
+    this.char_size_x = 40;
+    this.char_size_y = 16;
 
     this.pos_x = SCREEN_X / 2 - this.char_size_x / 2;
     this.pos_y = SCREEN_Y * 0.30;
     
     this.draw = function (ctx) {
-      var edge = 3;
+      var edge = 4;
       
       var p1 = project([this.pos_x - SCREEN_X / 2, this.pos_y - SCREEN_Y / 2, ZS]);
       var p4 = project([this.pos_x + this.char_size_x - SCREEN_X / 2, this.pos_y + this.char_size_y - SCREEN_Y / 2, ZS]);
@@ -113,7 +113,7 @@
 
       ctx.fillStyle = "yellow";
       ctx.fillRect(pos_x, pos_y, char_size_x, char_size_y);
-      ctx.fillRect(pos_x - edge, pos_y + (char_size_y - edge) / 2, char_size_x + 2 * edge, edge);
+      ctx.fillRect(pos_x - edge, pos_y + (char_size_y - edge) *0.6, char_size_x + 2 * edge, edge);
       
       ctx.fillStyle = "red";
       ctx.fillRect(pos_x + edge, pos_y + edge, char_size_x / 2 - 2 * edge, char_size_y - 2 * edge);
@@ -176,7 +176,7 @@
           var p1 = project([bullet[0] - SCREEN_X / 2, bullet[1] - SCREEN_Y / 2, bullet[2]]);
           var brightness = parseInt(255 * (bullet_max_depth - bullet[2]) / bullet_max_depth, 10);
           ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
-          ctx.fillRect(p1[0], p1[1], 2, 2);
+          ctx.fillRect(p1[0], p1[1], 3, 3);
       }
     }
     this.move =   function move () {
