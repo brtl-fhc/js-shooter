@@ -1,6 +1,5 @@
   var SCREEN_X = 640;
   var SCREEN_Y = 480;
-  var MAX_DEPTH = 1000;
 
   var ZS = 500;
   
@@ -100,14 +99,22 @@
     
     this.draw = function (ctx) {
       var edge = 3;
+      
+      var p1 = project([this.pos_x - SCREEN_X / 2, this.pos_y - SCREEN_Y / 2, ZS]);
+      var p4 = project([this.pos_x + this.char_size_x - SCREEN_X / 2, this.pos_y + this.char_size_y - SCREEN_Y / 2, ZS]);
+      var p2 = [p4[0], p1[1], ZS];
+      var p3 = [p1[0], p4[1], ZS];
+
+      // work with projected points now:
       var pos_x = this.pos_x;
       var pos_y = this.pos_y;
-      var char_size_x = this.char_size_x;
-      var char_size_y = this.char_size_y;
+      var char_size_x = p4[0]-p1[0];
+      var char_size_y = p4[1]-p1[1];
+
       ctx.fillStyle = "yellow";
       ctx.fillRect(pos_x, pos_y, char_size_x, char_size_y);
       ctx.fillRect(pos_x - edge, pos_y + (char_size_y - edge) / 2, char_size_x + 2 * edge, edge);
-
+      
       ctx.fillStyle = "red";
       ctx.fillRect(pos_x + edge, pos_y + edge, char_size_x / 2 - 2 * edge, char_size_y - 2 * edge);
       ctx.fillRect(pos_x + char_size_x / 2 + edge, pos_y + edge, char_size_x / 2 - 2 * edge, char_size_y - 2 * edge);
@@ -129,11 +136,11 @@
       var char_size_y = player.char_size_y;
       // p1  p2
       // p3  p4
-      var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.hud_z]);
-      var p4 = project([pos_x - SCREEN_X / 2 + char_size_x, pos_y + char_size_y - SCREEN_Y / 2, this.hud_z]);
+      // Project just p1-p4 diagonal and deduce p2 and p3
+      var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, hud_z]);
+      var p4 = project([pos_x - SCREEN_X / 2 + char_size_x, pos_y + char_size_y - SCREEN_Y / 2, hud_z]);
       var p2 = [p4[0], p1[1], this.hud_z];
       var p3 = [p1[0], p4[1], this.hud_z];
-
 
       var hud_size = 3;
       ctx.strokeStyle = "yellow";
