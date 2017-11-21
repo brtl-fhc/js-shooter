@@ -12,6 +12,12 @@
     return ret;
   }
 
+  function collision (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
+    return  (x1 < x2 + w2 && x1 + w1 > x2 &&
+      y1 < y2 + h2 && h1 + y1 > y2 &&
+      z1 < z2 + d2 && z1 + d1 > d2);
+  }
+  
   function Grid (){
     this.points = [];
     this.offset = 0;
@@ -169,8 +175,8 @@
 
   function Bullets (player) {
     var bullet_max_depth = 10000;
-    var bullet_speed = 50;
-
+    this.bullet_speed = 50;
+    this.bullet_size = 3;
     this.bullets = [];
     
     this.draw = function draw (ctx, i) {
@@ -178,13 +184,15 @@
       var p1 = project([bullet[0] - SCREEN_X / 2, bullet[1] - SCREEN_Y / 2, bullet[2]]);
       var brightness = parseInt(255 * (bullet_max_depth - bullet[2]) / bullet_max_depth, 10);
       ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
-      ctx.fillRect(p1[0], p1[1], 3, 3);
+      ctx.fillRect(p1[0], p1[1], this.bullet_size, this.bullet_size);
     }
     this.move = function move () {
       for (var i = 0; i < this.bullets.length; i++) {
-        this.bullets[i][2] += bullet_speed;
+        if (this.bullets[i]!=null){
+          this.bullets[i][2] += this.bullet_speed;
+        }
       }
-      while (this.bullets.length > 0 && this.bullets[0][2] > bullet_max_depth) {
+      while (this.bullets.length > 0 && (this.bullets[0] == null || this.bullets[0][2] > bullet_max_depth)) {
         this.bullets.shift();
       }
     }
@@ -195,21 +203,22 @@
   }
   
   function Enemy (x, y, z) {
-    var size_x = 30;
-    var size_y = 30;
+    this.size_x = 30;
+    this.size_y = 30;
     this.pos_x = x;
     this.pos_y = y;
     this.pos_z = z;
+    this.hit = 0;
     
     var speed = 2;
 
-    this.draw = function (ctx) {
+    this.draw = function (ctx, timestamp) {
       var pos_x = this.pos_x;
       var pos_y = this.pos_y;
       var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
-      var p4 = project([pos_x - SCREEN_X / 2 + size_x, pos_y + size_y - SCREEN_Y / 2, this.pos_z]);
+      var p4 = project([pos_x - SCREEN_X / 2 + this.size_x, pos_y + this.size_y - SCREEN_Y / 2, this.pos_z]);
       
-      ctx.fillStyle = "red";
+      ctx.fillStyle = timestamp - this.hit < 50 ? "white" : "red";
       ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
     }
     
@@ -222,7 +231,7 @@
       this.pos_z += moves[curr_move][2];
       if (this.pos_x <= 0){
         curr_move = 0;
-      } else if (this.pos_x >= SCREEN_X-size_x){
+      } else if (this.pos_x >= SCREEN_X-this.size_x){
         curr_move = 1;
       }
     }
@@ -278,7 +287,7 @@
     
     imgBackground.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
      
-    var draw = function () {
+    var draw = function (timestamp) {
       var canvas = document.getElementById("canvas");
       if (canvas.getContext) {
         var ctx = canvas.getContext("2d");
@@ -286,11 +295,11 @@
         ctx.fillRect(0, 0, SCREEN_X, SCREEN_Y);
         ctx.drawImage(imgBackground, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2);
         grid.drawGrid (ctx);
-        drawObjects (ctx);
+        drawObjects (ctx, timestamp);
       }
     }
     
-    var drawObjects = function (ctx) {
+    var drawObjects = function (ctx, timestamp) {
       var curr_bullet = 0;
       var curr_enemy = 0;
       var curr_player = 0;
@@ -309,13 +318,16 @@
           break;
         }
         if (z_bullet == z) {
-          bullets.draw (ctx, curr_bullet++);
+          bullets.draw (ctx, curr_bullet);
+          do {
+            curr_bullet++
+          }while (curr_bullet<bullets.bullets.length && bullets.bullets[curr_bullet]==null);
         }
         if (z_player == z) {
           obj_player[curr_player++].draw (ctx);
         }
         if (z_enemy == z) {
-          enemies[curr_enemy++].draw (ctx);
+          enemies[curr_enemy++].draw (ctx, timestamp);
         }
       }
     }
@@ -340,14 +352,31 @@
       }
     }
     
-    var render = function () {
+    var doCollisions = function (timestamp) {
+      for (var i=0; i< bullets.bullets.length; i++){
+        var bullet = bullets.bullets[i];
+        for (var j=0; j<enemies.length; j++) {
+          var enemy = enemies[j];
+          if (bullet != null) {
+            if (collision (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, -bullets.bullet_speed,
+                          enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
+              bullets.bullets[i] = null;
+              enemy.hit = timestamp;
+            }
+          }          
+        }
+      }  
+    }
+    
+    var render = function (timestamp) {
       doControl();
       grid.move ();
       for (var i=0;i<enemies.length;i++){
-        enemies[i].move();
+        enemies[i].move(timestamp);
       }
-      bullets.move ();
-      draw();
+      bullets.move (timestamp);
+      doCollisions (timestamp);
+      draw(timestamp);
       window.requestAnimationFrame(render);
     }
         
