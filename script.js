@@ -3,6 +3,7 @@
 
   var ZS = 500;
   
+  
   function project(p) {
     var ret = [
       p[0] * ZS / p[2] + SCREEN_X / 2,
@@ -31,6 +32,7 @@
       }
     }
     
+    
     this.rotate = function (p) {
       return [
         p[0] * this.rot_cos - p[1] * this.rot_sin,
@@ -54,8 +56,6 @@
 
           sp1 = this.points[i];
           sp2 = this.points[(this.DIM - 1) * this.DIM + i];
-          p1 = project(sp1);
-          p2 = project(sp2);
           var p1 = project(this.rotate([sp1[0], sp1[1], sp1[2] - this.offset]));
           var p2 = project(this.rotate([sp2[0], sp2[1], sp2[2] - this.offset]));
 
@@ -96,14 +96,15 @@
 
     this.pos_x = SCREEN_X / 2 - this.char_size_x / 2;
     this.pos_y = SCREEN_Y * 0.30;
+    this.pos_z = ZS;
     
     this.draw = function (ctx) {
       var edge = 4;
       
-      var p1 = project([this.pos_x - SCREEN_X / 2, this.pos_y - SCREEN_Y / 2, ZS]);
-      var p4 = project([this.pos_x + this.char_size_x - SCREEN_X / 2, this.pos_y + this.char_size_y - SCREEN_Y / 2, ZS]);
-      var p2 = [p4[0], p1[1], ZS];
-      var p3 = [p1[0], p4[1], ZS];
+      var p1 = project([this.pos_x - SCREEN_X / 2, this.pos_y - SCREEN_Y / 2, this.pos_z]);
+      var p4 = project([this.pos_x + this.char_size_x - SCREEN_X / 2, this.pos_y + this.char_size_y - SCREEN_Y / 2, this.pos_z]);
+      var p2 = [p4[0], p1[1], this.pos_z];
+      var p3 = [p1[0], p4[1], this.pos_z];
 
       // work with projected points now:
       var pos_x = this.pos_x;
@@ -127,7 +128,7 @@
   }  
 
   function Hud (player) {
-    var hud_z = 1000;
+    this.pos_z = 1000;
     
     this.draw = function (ctx) {
       var pos_x = player.pos_x;
@@ -137,8 +138,8 @@
       // p1  p2
       // p3  p4
       // Project just p1-p4 diagonal and deduce p2 and p3
-      var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, hud_z]);
-      var p4 = project([pos_x - SCREEN_X / 2 + char_size_x, pos_y + char_size_y - SCREEN_Y / 2, hud_z]);
+      var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
+      var p4 = project([pos_x - SCREEN_X / 2 + char_size_x, pos_y + char_size_y - SCREEN_Y / 2, this.pos_z]);
       var p2 = [p4[0], p1[1], this.hud_z];
       var p3 = [p1[0], p4[1], this.hud_z];
 
@@ -168,28 +169,62 @@
 
   function Bullets (player) {
     var bullet_max_depth = 10000;
-    var bullets = [];
+    var bullet_speed = 50;
+
+    this.bullets = [];
     
-    this.draw = function draw (ctx) {
-      for (var i = 0; i < bullets.length; i++) {
-          var bullet = bullets[i];
-          var p1 = project([bullet[0] - SCREEN_X / 2, bullet[1] - SCREEN_Y / 2, bullet[2]]);
-          var brightness = parseInt(255 * (bullet_max_depth - bullet[2]) / bullet_max_depth, 10);
-          ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
-          ctx.fillRect(p1[0], p1[1], 3, 3);
-      }
+    this.draw = function draw (ctx, i) {
+      var bullet = this.bullets[i];
+      var p1 = project([bullet[0] - SCREEN_X / 2, bullet[1] - SCREEN_Y / 2, bullet[2]]);
+      var brightness = parseInt(255 * (bullet_max_depth - bullet[2]) / bullet_max_depth, 10);
+      ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
+      ctx.fillRect(p1[0], p1[1], 3, 3);
     }
-    this.move =   function move () {
-      for (var i = 0; i < bullets.length; i++) {
-        bullets[i][2] += 50;
+    this.move = function move () {
+      for (var i = 0; i < this.bullets.length; i++) {
+        this.bullets[i][2] += bullet_speed;
       }
-      while (bullets.length > 0 && bullets[0][2] > bullet_max_depth) {
-        bullets.shift();
+      while (this.bullets.length > 0 && this.bullets[0][2] > bullet_max_depth) {
+        this.bullets.shift();
       }
     }
     this.fire = function () {
-      bullets.push([player.pos_x-1, player.pos_y + player.char_size_y / 2, ZS]);
-      bullets.push([player.pos_x + player.char_size_x, player.pos_y + player.char_size_y / 2, ZS]);
+      this.bullets.push([player.pos_x-1, player.pos_y + player.char_size_y / 2, ZS]);
+      this.bullets.push([player.pos_x + player.char_size_x, player.pos_y + player.char_size_y / 2, ZS]);
+    }
+  }
+  
+  function Enemy (x, y, z) {
+    var size_x = 30;
+    var size_y = 30;
+    this.pos_x = x;
+    this.pos_y = y;
+    this.pos_z = z;
+    
+    var speed = 2;
+
+    this.draw = function (ctx) {
+      var pos_x = this.pos_x;
+      var pos_y = this.pos_y;
+      var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
+      var p4 = project([pos_x - SCREEN_X / 2 + size_x, pos_y + size_y - SCREEN_Y / 2, this.pos_z]);
+      
+      ctx.fillStyle = "red";
+      ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+    }
+    
+    var moves = [[speed, 0, 0], [-speed, 0, 0]]
+    var curr_move = 0;
+    
+    this.move = function () {
+      this.pos_x += moves[curr_move][0];
+      this.pos_y += moves[curr_move][1];
+      this.pos_z += moves[curr_move][2];
+      if (this.pos_x <= 0){
+        curr_move = 0;
+      } else if (this.pos_x >= SCREEN_X-size_x){
+        curr_move = 1;
+      }
     }
   }
 
@@ -239,7 +274,8 @@
     var bullets = new Bullets (player);
     var imgBackground = new Image();
     var control = new Control ();
-
+    var enemies = [new Enemy (0, SCREEN_Y * 0.1, 1100), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 900), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 700)];
+    
     imgBackground.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
      
     var draw = function () {
@@ -250,9 +286,37 @@
         ctx.fillRect(0, 0, SCREEN_X, SCREEN_Y);
         ctx.drawImage(imgBackground, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2);
         grid.drawGrid (ctx);
-        hud.draw (ctx);
-        bullets.draw (ctx);
-        player.draw (ctx);
+        drawObjects (ctx);
+      }
+    }
+    
+    var drawObjects = function (ctx) {
+      var curr_bullet = 0;
+      var curr_enemy = 0;
+      var curr_player = 0;
+      
+      var obj_player = [hud, player];
+      
+      var z = 10000; // bullet_max_depth
+      
+      while (z >= ZS){
+        var z_bullet = curr_bullet < bullets.bullets.length ? bullets.bullets[curr_bullet][2]:0;
+        var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : 0;
+        var z_enemy = curr_enemy < enemies.length? enemies [curr_enemy].pos_z : 0;
+
+        z = Math.max (z_bullet, Math.max (z_player, z_enemy));
+        if (z < ZS){
+          break;
+        }
+        if (z_bullet == z) {
+          bullets.draw (ctx, curr_bullet++);
+        }
+        if (z_player == z) {
+          obj_player[curr_player++].draw (ctx);
+        }
+        if (z_enemy == z) {
+          enemies[curr_enemy++].draw (ctx);
+        }
       }
     }
     
@@ -279,6 +343,9 @@
     var render = function () {
       doControl();
       grid.move ();
+      for (var i=0;i<enemies.length;i++){
+        enemies[i].move();
+      }
       bullets.move ();
       draw();
       window.requestAnimationFrame(render);
