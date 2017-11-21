@@ -218,7 +218,9 @@
       var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
       var p4 = project([pos_x - SCREEN_X / 2 + this.size_x, pos_y + this.size_y - SCREEN_Y / 2, this.pos_z]);
       
-      ctx.fillStyle = timestamp - this.hit < 50 ? "white" : "red";
+      var msSinceHit = timestamp - this.hit;
+      var delay = 500;
+      ctx.fillStyle = msSinceHit < delay ? "rgb(255,"+(255*(1-msSinceHit/delay))+","+(255*(1-msSinceHit/delay))+")" : "red";
       ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
     }
     
