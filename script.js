@@ -283,17 +283,20 @@
     var audio_hit = new Audio ("https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F398283__flashtrauma__explosion.wav?1511353919083");
     var enabled = 1;
     
-    var play = function (audio){
+    var play = function (audio, vol){
       if (!enabled){
         return;
       }
       if (audio.currentTime > 0.04){
         audio.currentTime = 0
       }
+      if (vol !== undefined){
+        audio.volume = vol;
+      }
       audio.play ();
     }
-    this.shot = function () { play (audio_shot); }
-    this.hit = function () { play (audio_hit); }
+    this.shot = function (vol) { play (audio_shot, vol); }
+    this.hit = function (vol) { play (audio_hit, vol); }
   }
 
   function Game () {
@@ -382,7 +385,7 @@
           if (bullet != null) {
             if (collision (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
-              sound.hit ();
+              sound.hit (1 - enemy.pos_z / 2000);
               bullets.bullets[i] = null;
               enemy.hit = timestamp;
             }
