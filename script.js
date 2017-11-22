@@ -275,13 +275,13 @@
     }
     var clientX = 0;
     var clientY = 0;
-    var delta = 10;
+    var delta = 5;
     var onTouchMove = function (event) {
       var touch = event.touches[0];
-      if (touch.clientX < clientX) { pressed = pressed | LEFT; pressed = pressed & ~ RIGHT}
-      else if (touch.clientX > clientX) { pressed = pressed | RIGHT; pressed = pressed & ~ LEFT}
-      if (touch.clientY < clientY) { pressed = pressed | UP; pressed = pressed & ~ DOWN}
-      else if (touch.clientY > clientY) { pressed = pressed | DOWN; pressed = pressed & ~ UP}
+      if (touch.clientX < clientX && touch.clientX+delta < clientX) { pressed = pressed | LEFT; pressed = pressed & ~ RIGHT}
+      else if (touch.clientX > clientX && touch.clientX-delta > clientX) { pressed = pressed | RIGHT; pressed = pressed & ~ LEFT}
+      if (touch.clientY < clientY && touch.clientY+delta < clientY) { pressed = pressed | UP; pressed = pressed & ~ DOWN}
+      else if (touch.clientY > clientY && touch.clientY -delta > clientY) { pressed = pressed | DOWN; pressed = pressed & ~ UP}
 
       clientX = touch.clientX;
       clientY = touch.clientY;
