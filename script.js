@@ -28,7 +28,6 @@
     this.DIM = 25;
     this.angle_speed = 0.004;
 
-
     for (var i = -this.DIM / 2; i < this.DIM / 2; i++) {
       for (var j = 0; j < this.DIM; j++) {
         var x = i * 120;
@@ -47,8 +46,8 @@
       ];      
     }
     
-    this.drawGrid = function (ctx){
-        ctx.strokeStyle = "limegreen";
+    this.drawGrid = function (ctx, style){
+        ctx.strokeStyle = style;
         ctx.lineWidth = 2;
         for (var i = 0; i < this.DIM; i++) {
           var sp1 = this.points[i * this.DIM + 1];
@@ -304,21 +303,34 @@
     var player = new Player ();
     var hud = new Hud (player);
     var bullets = new Bullets (player);
-    var imgBackground = new Image();
     var control = new Control ();
     var sound = new Sound ();
     var enemies = [new Enemy (0, SCREEN_Y * 0.1, 1100), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 900), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 700)];
+
+    var imgSaturn = new Image();
+    imgSaturn.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
     
-    imgBackground.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
+    var imgSun = new Image ();
+    imgSun.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F9103296900_0d383feabf_z.jpg?1511356896867";
     
+    var imgEclipse = new Image();
+    imgEclipse.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F36326775510_eda3cf9402_z.jpg?1511358509011";
+
+    var levels = [
+      {drawBackground: function (ctx){ ctx.drawImage(imgSaturn, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2); }, gridColor: "limegreen"},
+      {drawBackground: function (ctx){ ctx.drawImage(imgEclipse, 0, 434/2, 640, 434/2, 60, 0, SCREEN_X, 434/2); }, gridColor: "violet"},
+      {drawBackground: function (ctx){ ctx.drawImage(imgSun, 0, 320, 640, 320, 0, -100, SCREEN_X, 320); }, gridColor: "orange"}
+    ];
+    var level = 0;
+
     var draw = function (timestamp) {
       var canvas = document.getElementById("canvas");
       if (canvas.getContext) {
         var ctx = canvas.getContext("2d");
         ctx.fillStyle = "rgb(0,0,0)";
         ctx.fillRect(0, 0, SCREEN_X, SCREEN_Y);
-        ctx.drawImage(imgBackground, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2);
-        grid.drawGrid (ctx);
+        levels[level].drawBackground (ctx);
+        grid.drawGrid (ctx, levels[level].gridColor);
         drawObjects (ctx, timestamp);
       }
     }
@@ -372,7 +384,7 @@
         player.moveDown ();
       }
       if (control.isFirePressed ()) {
-        sound.shot ();
+        sound.shot (0.5);
         bullets.fire ();
       }
     }
