@@ -278,6 +278,24 @@
     
   }
 
+  function Sound () {
+    var audio_shot = new Audio ("https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F317136__bird-man__sci-fi-gun-shot.wav?1511349312785");
+    var audio_hit = new Audio ("https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F398283__flashtrauma__explosion.wav?1511353919083");
+    var enabled = 1;
+    
+    var play = function (audio){
+      if (!enabled){
+        return;
+      }
+      if (audio.currentTime > 0.04){
+        audio.currentTime = 0
+      }
+      audio.play ();
+    }
+    this.shot = function () { play (audio_shot); }
+    this.hit = function () { play (audio_hit); }
+  }
+
   function Game () {
     var grid = new Grid ();
     var player = new Player ();
@@ -285,10 +303,11 @@
     var bullets = new Bullets (player);
     var imgBackground = new Image();
     var control = new Control ();
+    var sound = new Sound ();
     var enemies = [new Enemy (0, SCREEN_Y * 0.1, 1100), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 900), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 700)];
     
     imgBackground.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
-     
+    
     var draw = function (timestamp) {
       var canvas = document.getElementById("canvas");
       if (canvas.getContext) {
@@ -350,6 +369,7 @@
         player.moveDown ();
       }
       if (control.isFirePressed ()) {
+        sound.shot ();
         bullets.fire ();
       }
     }
@@ -362,6 +382,7 @@
           if (bullet != null) {
             if (collision (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
+              sound.hit ();
               bullets.bullets[i] = null;
               enemy.hit = timestamp;
             }
