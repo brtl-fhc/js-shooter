@@ -13,9 +13,9 @@
   }
 
   function collision (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
-    return  (x1 < x2 + w2 && x1 + w1 > x2 &&
-      y1 < y2 + h2 && h1 + y1 > y2 &&
-      z1 < z2 + d2 && z1 + d1 > d2);
+    return  (x1 < x2 + w2 && x2 < x1 + w1 &&
+      y1 < y2 + h2 && y2 < h1 + y1 &&
+      z1 < z2 + d2 && z2 < z1 + d1);
   }
   
   function Grid (){
@@ -310,7 +310,7 @@
       
       var z = 10000; // bullet_max_depth
       
-      while (z >= ZS){
+      while (true){
         var z_bullet = curr_bullet < bullets.bullets.length ? bullets.bullets[curr_bullet][2]:0;
         var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : 0;
         var z_enemy = curr_enemy < enemies.length? enemies [curr_enemy].pos_z : 0;
@@ -360,7 +360,7 @@
         for (var j=0; j<enemies.length; j++) {
           var enemy = enemies[j];
           if (bullet != null) {
-            if (collision (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, -bullets.bullet_speed,
+            if (collision (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
               bullets.bullets[i] = null;
               enemy.hit = timestamp;
@@ -376,8 +376,8 @@
       for (var i=0;i<enemies.length;i++){
         enemies[i].move(timestamp);
       }
-      bullets.move (timestamp);
       doCollisions (timestamp);
+      bullets.move (timestamp);
       draw(timestamp);
       window.requestAnimationFrame(render);
     }
