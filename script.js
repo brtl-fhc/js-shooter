@@ -323,6 +323,22 @@
     ];
     var level = 0;
 
+    var score = {
+      current: 0,
+      hit: function () {
+        var hitsToAdvance = 250;
+        
+        this.current++;
+        if (this.current==hitsToAdvance){
+          this.advance ();
+        }
+      },
+      advance: function () {
+        level = (level+1) % levels.length;
+        this.current =  0;
+      }
+    }
+    
     var draw = function (timestamp) {
       var canvas = document.getElementById("canvas");
       if (canvas.getContext) {
@@ -400,6 +416,7 @@
               sound.hit (1 - enemy.pos_z / 2000);
               bullets.bullets[i] = null;
               enemy.hit = timestamp;
+              score.hit ();
             }
           }          
         }
