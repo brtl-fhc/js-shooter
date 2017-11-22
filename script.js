@@ -265,9 +265,36 @@
       pressed = pressed & ~dir;
       //console.log(control.pressed);
     }
+    var onTouchStart = function (event) {
+      pressed = pressed | FIRE;
+      event.preventDefault ();
+    }
+    var onTouchEnd = function (event) {
+      pressed = 0;
+      event.preventDefault ();
+    }
+    var clientX = 0;
+    var clientY = 0;
+    var delta = 10;
+    var onTouchMove = function (event) {
+      var touch = event.touches[0];
+      if (touch.clientX < clientX) { pressed = pressed | LEFT; pressed = pressed & ~ RIGHT}
+      else if (touch.clientX > clientX) { pressed = pressed | RIGHT; pressed = pressed & ~ LEFT}
+      if (touch.clientY < clientY) { pressed = pressed | UP; pressed = pressed & ~ DOWN}
+      else if (touch.clientY > clientY) { pressed = pressed | DOWN; pressed = pressed & ~ UP}
+
+      clientX = touch.clientX;
+      clientY = touch.clientY;
+    }
     this.enable = function () {
+      var canvas = document.getElementById("canvas");
       window.addEventListener('keyup', onKeyUp, false);
       window.addEventListener('keydown', onKeyDown, false);
+      canvas.addEventListener('touchstart', onTouchStart, false);
+      //canvas.addEventListener('mousedown', onTouchStart, false);
+      canvas.addEventListener('touchmove', onTouchMove, false);
+      canvas.addEventListener('touchend', onTouchEnd, false);
+      //canvas.addEventListener('mouseup', onTouchEnd, false);
     }
     this.isLeftPressed = function(){ return pressed & LEFT }
     this.isRightPressed = function(){ return pressed & RIGHT }
