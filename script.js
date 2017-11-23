@@ -95,7 +95,7 @@
   }
 
   function Player (){
-    this.char_speed = 6;
+    var char_speed = 6;
     this.char_size_x = 40;
     this.char_size_y = 16;
 
@@ -125,11 +125,13 @@
       ctx.fillRect(pos_x + edge, pos_y + edge, char_size_x / 2 - 2 * edge, char_size_y - 2 * edge);
       ctx.fillRect(pos_x + char_size_x / 2 + edge, pos_y + edge, char_size_x / 2 - 2 * edge, char_size_y - 2 * edge);
     }
-    
-    this.moveLeft = function () { this.pos_x = Math.max(0, this.pos_x - this.char_speed); }
-    this.moveRight = function () { this.pos_x = Math.min(SCREEN_X - this.char_size_x, this.pos_x + this.char_speed); }
-    this.moveUp = function () { this.pos_y = Math.max(0, this.pos_y - this.char_speed); }
-    this.moveDown = function () { this.pos_y = Math.min(SCREEN_Y - this.char_size_y, this.pos_y + this.char_speed); }
+    var calcSpeed = function (speed) {
+      return !speed? char_speed : Math.min (speed, char_speed);
+    }
+    this.moveLeft = function (speed) { this.pos_x = Math.max(0, this.pos_x - calcSpeed(speed)); }
+    this.moveRight = function (speed) { this.pos_x = Math.min(SCREEN_X - this.char_size_x, this.pos_x + calcSpeed(speed)); }
+    this.moveUp = function (speed) { this.pos_y = Math.max(0, this.pos_y - calcSpeed(speed)); }
+    this.moveDown = function (speed) { this.pos_y = Math.min(SCREEN_Y - this.char_size_y, this.pos_y + calcSpeed(speed)); }
   }  
 
   function Hud (player) {
@@ -265,24 +267,28 @@
       pressed = pressed & ~dir;
       //console.log(control.pressed);
     }
+    var clientX = 0;
+    var clientY = 0;
+    var touchSpeed = [0, 0];
+    
     var onTouchStart = function (event) {
       pressed = pressed | FIRE;
       event.preventDefault ();
     }
     var onTouchEnd = function (event) {
       pressed = 0;
+      touchSpeed = [0,0];
       event.preventDefault ();
-    }
-    var clientX = 0;
-    var clientY = 0;
-    var delta = 5;
+    }    
     var onTouchMove = function (event) {
       var touch = event.touches[0];
-      if (touch.clientX < clientX && touch.clientX+delta < clientX) { pressed = pressed | LEFT; pressed = pressed & ~ RIGHT}
-      else if (touch.clientX > clientX && touch.clientX-delta > clientX) { pressed = pressed | RIGHT; pressed = pressed & ~ LEFT}
-      if (touch.clientY < clientY && touch.clientY+delta < clientY) { pressed = pressed | UP; pressed = pressed & ~ DOWN}
-      else if (touch.clientY > clientY && touch.clientY -delta > clientY) { pressed = pressed | DOWN; pressed = pressed & ~ UP}
-
+      pressed = FIRE;
+      touchSpeed[0] = touch.clientX - clientX;
+      if (touchSpeed[0] < 0) { pressed = (pressed | LEFT) & ~RIGHT; }
+      else if (touchSpeed[0] > 0) { pressed = (pressed | RIGHT) & ~LEFT; }
+      touchSpeed[1] = touch.clientY - clientY;
+      if (touchSpeed[1]< 0) { pressed = (pressed | UP) & ~DOWN; }
+      else if (touchSpeed[1] > 0) { pressed = (pressed | DOWN) & ~UP; }
       clientX = touch.clientX;
       clientY = touch.clientY;
     }
@@ -301,7 +307,8 @@
     this.isUpPressed = function(){ return pressed & UP }
     this.isDownPressed = function(){ return pressed & DOWN }
     this.isFirePressed = function(){ return pressed & FIRE }
-    
+    this.getXSpeed = function() {return touchSpeed[0]; }
+    this.getYSpeed = function() {return touchSpeed[1]; }
   }
 
   function Sound () {
@@ -413,18 +420,18 @@
     
     var doControl = function() {
       if (control.isLeftPressed ()) {
-        player.moveLeft ();
+        player.moveLeft (- control.getXSpeed ());
         grid.rotateLeft ();
       } else if (control.isRightPressed ()) {
-        player.moveRight ();
+        player.moveRight (control.getXSpeed ());
         grid.rotateRight ();
       } else {
         grid.undoRotation ();
       }
       if (control.isUpPressed ()) {
-        player.moveUp ();
+        player.moveUp (-control.getYSpeed ());
       } else if (control.isDownPressed ()) {
-        player.moveDown ();
+        player.moveDown (control.getYSpeed ());
       }
       if (control.isFirePressed ()) {
         sound.shot (0.5);
