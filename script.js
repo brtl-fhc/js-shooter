@@ -147,8 +147,8 @@
       // Project just p1-p4 diagonal and deduce p2 and p3
       var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
       var p4 = project([pos_x - SCREEN_X / 2 + char_size_x, pos_y + char_size_y - SCREEN_Y / 2, this.pos_z]);
-      var p2 = [p4[0], p1[1], this.hud_z];
-      var p3 = [p1[0], p4[1], this.hud_z];
+      var p2 = [p4[0], p1[1], this.pos_z];
+      var p3 = [p1[0], p4[1], this.pos_z];
 
       var hud_size = 3;
       ctx.strokeStyle = "yellow";
@@ -240,6 +240,36 @@
     }
   }
 
+  function Explosion (x, y, z, ts) {
+    this.pos_x = x;
+    this.pos_y = y;
+    this.pos_z = z;
+    this.state = 0;
+    
+    var timestamp = ts;
+    var seq = [4, 5, 5, 4, 3, 2, 1];
+    
+    var imgExplosion = new Image ();
+    imgExplosion.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577";
+    
+    var SPRITE_SIZE=128;
+    var durationMs = 250;
+        
+    this.update = function (now){
+      var elapsed = now - timestamp; 
+      this.state = elapsed <= durationMs ? Math.floor(elapsed / durationMs * seq.length)  : -1;
+    }
+    this.draw = function (ctx){
+      var offsetX = seq[this.state]*SPRITE_SIZE;
+      var offsetY = 0;
+      
+      var p1 = project([this.pos_x - SCREEN_X / 2 - SPRITE_SIZE/2, this.pos_y - SCREEN_Y / 2 - SPRITE_SIZE/2, this.pos_z]);
+      var p4 = project([this.pos_x - SCREEN_X / 2 - SPRITE_SIZE/2 + SPRITE_SIZE, this.pos_y + SPRITE_SIZE - SCREEN_Y / 2 - SPRITE_SIZE/2, this.pos_z]);
+
+      ctx.drawImage(imgExplosion, offsetX, offsetY, SPRITE_SIZE, SPRITE_SIZE, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+    }
+  }
+
   function Control () {
     var pressed= 0;
     
@@ -314,7 +344,7 @@
   function Sound () {
     var audio_shot = new Audio ("https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F317136__bird-man__sci-fi-gun-shot.wav?1511349312785");
     var audio_hit = new Audio ("https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F398283__flashtrauma__explosion.wav?1511353919083");
-    var enabled = 1;
+    var enabled = 0;
     
     var play = function (audio, vol){
       if (!enabled){
@@ -340,6 +370,7 @@
     var control = new Control ();
     var sound = new Sound ();
     var enemies = [new Enemy (0, SCREEN_Y * 0.1, 1100), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 900), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 700)];
+    var explosions = [];
 
     var imgSaturn = new Image();
     imgSaturn.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
@@ -389,6 +420,7 @@
       var curr_bullet = 0;
       var curr_enemy = 0;
       var curr_player = 0;
+      var curr_explosion = 0;
       
       var obj_player = [hud, player];
       
@@ -398,6 +430,7 @@
         var z_bullet = curr_bullet < bullets.bullets.length ? bullets.bullets[curr_bullet][2]:0;
         var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : 0;
         var z_enemy = curr_enemy < enemies.length? enemies [curr_enemy].pos_z : 0;
+        var z_explosion = curr_explosion < explosions.length? explosions [curr_explosion].pos_z : 0;
 
         z = Math.max (z_bullet, Math.max (z_player, z_enemy));
         if (z < ZS){
@@ -414,6 +447,9 @@
         }
         if (z_enemy == z) {
           enemies[curr_enemy++].draw (ctx, timestamp);
+        }
+        if (z_explosion == z) {
+          explosions[curr_explosion++].draw (ctx, timestamp);
         }
       }
     }
@@ -439,6 +475,11 @@
       }
     }
     
+    var addExplosion = function (x, y, z, timestamp){
+      var explosion = new Explosion (x, y, z, timestamp);
+      explosions.push (explosion);
+      console.log (explosions.length);
+    }
     var doCollisions = function (timestamp) {
       for (var i=0; i< bullets.bullets.length; i++){
         var bullet = bullets.bullets[i];
@@ -450,6 +491,7 @@
               sound.hit (1 - enemy.pos_z / 2000);
               bullets.bullets[i] = null;
               enemy.hit = timestamp;
+              addExplosion (bullet[0]+bullets.bullet_size/2, bullet[1]+bullets.bullet_size/2, bullet[2], timestamp);
               score.hit ();
             }
           }          
@@ -457,6 +499,15 @@
       }  
     }
     
+
+    var moveExplosions = function (timestamp) {
+      for (var i =0 ; i<explosions.length; i++){
+        explosions[i].update(timestamp);
+        if (explosions[i].state==-1){
+          explosions.splice(i,1);
+        }
+      }
+    }
     var render = function (timestamp) {
       doControl();
       grid.move ();
@@ -464,6 +515,7 @@
         enemies[i].move(timestamp);
       }
       doCollisions (timestamp);
+      moveExplosions (timestamp);
       bullets.move (timestamp);
       draw(timestamp);
       window.requestAnimationFrame(render);
