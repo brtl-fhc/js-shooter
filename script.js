@@ -178,7 +178,7 @@
     var bullet_max_depth = 10000;
     this.bullet_speed = 50;
     this.bullet_size = 3;
-    this.bullets = [];
+    this.bullets = [];  // reverse sorted by Z
     
     this.draw = function draw (ctx, i) {
       var bullet = this.bullets[i];
@@ -247,7 +247,7 @@
     this.state = 0;
     
     var timestamp = ts;
-    var seq = [4, 5, 5, 4, 3, 2, 1];
+    var seq = [2, 3, 3, 2, 1, 0];
     
     var imgExplosion = new Image ();
     imgExplosion.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577";
@@ -344,7 +344,7 @@
   function Sound () {
     var audio_shot = new Audio ("https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F317136__bird-man__sci-fi-gun-shot.wav?1511349312785");
     var audio_hit = new Audio ("https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F398283__flashtrauma__explosion.wav?1511353919083");
-    var enabled = 0;
+    var enabled = 1;
     
     var play = function (audio, vol){
       if (!enabled){
@@ -477,7 +477,11 @@
     
     var addExplosion = function (x, y, z, timestamp){
       var explosion = new Explosion (x, y, z, timestamp);
-      explosions.push (explosion);
+      var zOrder = 0;
+      while (zOrder < explosions.length && explosions[zOrder].pos_z>z){
+        zOrder++;
+      }
+      explosions.splice (zOrder, 0, explosion);  // TODO: in-order insert
       console.log (explosions.length);
     }
     var doCollisions = function (timestamp) {
