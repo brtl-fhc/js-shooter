@@ -49,26 +49,25 @@
     this.drawGrid = function (ctx, style){
         ctx.strokeStyle = style;
         ctx.lineWidth = 2;
+        ctx.beginPath();
         for (var i = 0; i < this.DIM; i++) {
           var sp1 = this.points[i * this.DIM + 1];
           var sp2 = this.points[(i + 1) * this.DIM - 1];
           var p1 = project(this.rotate([sp1[0], sp1[1], sp1[2] - this.offset]));
           var p2 = project(this.rotate([sp2[0], sp2[1], sp2[2] - this.offset]));
-          ctx.beginPath();
           ctx.moveTo(p1[0], p1[1]);
           ctx.lineTo(p2[0], p2[1]);
-          ctx.stroke();
 
           sp1 = this.points[i];
           sp2 = this.points[(this.DIM - 1) * this.DIM + i];
           var p1 = project(this.rotate([sp1[0], sp1[1], sp1[2] - this.offset]));
           var p2 = project(this.rotate([sp2[0], sp2[1], sp2[2] - this.offset]));
 
-          ctx.beginPath();
           ctx.moveTo(p1[0], p1[1]);
           ctx.lineTo(p2[0], p2[1]);
-          ctx.stroke();
         }
+        ctx.stroke();
+
     }
     
     this.move = function () {
@@ -290,12 +289,10 @@
       var dir = getDir(event.keyCode);
       var opp = getOpposite(dir);
       pressed = (pressed | dir) & ~opp;
-      //console.log(control.pressed);
     }
     var onKeyUp = function(event) {
       var dir = getDir(event.keyCode);
       pressed = pressed & ~dir;
-      //console.log(control.pressed);
     }
     var clientX = 0;
     var clientY = 0;
@@ -482,7 +479,6 @@
         zOrder++;
       }
       explosions.splice (zOrder, 0, explosion);  // TODO: in-order insert
-      console.log (explosions.length);
     }
     var doCollisions = function (timestamp) {
       for (var i=0; i< bullets.bullets.length; i++){
