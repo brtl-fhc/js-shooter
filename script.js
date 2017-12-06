@@ -1,5 +1,5 @@
   var SCREEN_X = 800;
-  var SCREEN_Y = 480;
+  var SCREEN_Y = 400;
 
   var ZS = 500;
   
@@ -12,12 +12,112 @@
     return ret;
   }
 
-  function collision (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
-    return  (x1 < x2 + w2 && x2 < x1 + w1 &&
-      y1 < y2 + h2 && y2 < h1 + y1 &&
-      z1 < z2 + d2 && z2 < z1 + d1);
+
+  function ImageCache (){
+    this.images = {};
+    var loaded = [];
+    var canvases = {};
+    var masks = {};
+    
+    var assets = [
+      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon.png?1511798071897"],
+      ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463"],
+      ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435"],
+      ["enemy", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535"],
+      ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577"],
+    ]
+    
+    var convertImageToCanvas = function (image) {
+      var canvas = document.createElement("canvas");
+      canvas.setAttribute ("origin-clean", false);
+      canvas.width = image.width;
+      canvas.height = image.height;
+      canvas.getContext("2d").drawImage(image, 0, 0);
+      return canvas;
+    }
+
+    var calculateMask = function (name, img){
+      var image = img;
+      var canvas = convertImageToCanvas (image);
+      var data = canvas.getContext ("2d").getImageData (0,0,canvas.width, canvas.height).data;
+      var mask = []
+      for (var i=0; i<data.length/4; i++){
+        mask.push(data[i*4+3]);
+      }
+      masks[name]=mask;
+    }
+    this.getMaskPixel = function (name, abs_x, abs_y){
+      var image = this.images[name];
+      return masks[name][(image.width*abs_y)+abs_x];
+    }
+    this.load = function (name, url){
+      var img = new Image ();
+      img.crossOrigin = "Anonymous";
+      this.images[name] = img;
+      img.src = url;
+      img.onload = function () { 
+        loaded.push(name);
+        calculateMask(name, img);
+      }
+    }
+    
+    this.done = function () { return (loaded.length == assets.length); }
+    
+    this.getImageData = function (name, abs_x, abs_y, w, h){
+      if (!canvases[name]) {
+        canvases[name] = convertImageToCanvas (this.images[name]).getContext("2d");
+      }
+      return canvases[name].getImageData (abs_x, abs_y, w, h).data;
+    }
+    
+    for (var i=0; i<assets.length; i++) { 
+      this.load (assets[i][0], assets[i][1]);
+    }
   }
   
+  var imageCache = new ImageCache ();
+
+  function Sprite (imgName, w, h){
+    this.image = imgName;
+    this.width = w;
+    this.height = h;
+    this.canvas = null;
+    this.seq = [0];
+    this.state = 0;
+    
+    this.next = function () {
+      this.state = (this.state + 1) % this.seq.length;    
+    }
+    this.draw = function(ctx, x, y, z) {
+      var offsetX = this.seq[this.state]*this.width;
+      var offsetY = 0;
+      
+      var p1 = project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
+      var p4 = project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
+
+      ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+    }
+    this.drawCentered = function(ctx, x, y, z) {
+      var offsetX = this.seq[this.state]*this.width;
+      var offsetY = 0;
+      
+      var p1 = project([x - SCREEN_X / 2 - this.width/2, y - SCREEN_Y / 2 - this.height/2, z]);
+      var p4 = project([x - SCREEN_X / 2  + this.width/2, y - SCREEN_Y / 2 + this.height/2, z]);
+
+      ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+    }
+    this.getImageData = function (x, y, w, h) {
+      var offsetX = this.seq[this.state]*this.width;
+      var offsetY = 0;
+      return imageCache.getImageData (this.image, offsetX+x, offsetY+y, w, h);
+    }
+    this.getMaskPixel = function (x, y) {
+      var offsetX = this.seq[this.state]*this.width;
+      var offsetY = 0;
+      return imageCache.getMaskPixel (this.image, x, y);
+    }
+  }
+
   function Grid (){
     this.points = [];
     this.offset = 0;
@@ -93,39 +193,32 @@
     }
   }
 
+
   function Player (){
-    var char_speed = 6;
-    this.char_size_x = 40;
+    var char_speed = 8;
+    this.char_size_x = 32;
     this.char_size_y = 16;
 
     this.pos_x = SCREEN_X / 2 - this.char_size_x / 2;
     this.pos_y = SCREEN_Y * 0.30;
     this.pos_z = ZS;
     
-    this.draw = function (ctx) {
-      var edge = 4;
-      
-      var p1 = project([this.pos_x - SCREEN_X / 2, this.pos_y - SCREEN_Y / 2, this.pos_z]);
-      var p4 = project([this.pos_x + this.char_size_x - SCREEN_X / 2, this.pos_y + this.char_size_y - SCREEN_Y / 2, this.pos_z]);
-      var p2 = [p4[0], p1[1], this.pos_z];
-      var p3 = [p1[0], p4[1], this.pos_z];
-
-      // work with projected points now:
-      var pos_x = this.pos_x;
-      var pos_y = this.pos_y;
-      var char_size_x = p4[0]-p1[0];
-      var char_size_y = p4[1]-p1[1];
-
-      ctx.fillStyle = "yellow";
-      ctx.fillRect(pos_x, pos_y, char_size_x, char_size_y);
-      ctx.fillRect(pos_x - edge, pos_y + (char_size_y - edge) *0.6, char_size_x + 2 * edge, edge);
-      
-      ctx.fillStyle = "red";
-      ctx.fillRect(pos_x + edge, pos_y + edge, char_size_x / 2 - 2 * edge, char_size_y - 2 * edge);
-      ctx.fillRect(pos_x + char_size_x / 2 + edge, pos_y + edge, char_size_x / 2 - 2 * edge, char_size_y - 2 * edge);
+    var spritePlayer = new Sprite ("player", this.char_size_x, this.char_size_y);
+    spritePlayer.seq = [0,1];
+    
+    var timestamp=0;
+    var animMs = 250;
+    
+    this.draw = function (ctx, ts) {
+      if (ts - timestamp >= animMs){
+        spritePlayer.next(); 
+        timestamp = ts;
+      }
+      spritePlayer.draw (ctx, this.pos_x, this.pos_y, this.pos_z);
     }
+    
     var calcSpeed = function (speed) {
-      return !speed? char_speed : Math.min (speed, char_speed);
+      return !speed? char_speed : Math.floor(Math.min (speed, char_speed));
     }
     this.moveLeft = function (speed) { this.pos_x = Math.max(0, this.pos_x - calcSpeed(speed)); }
     this.moveRight = function (speed) { this.pos_x = Math.min(SCREEN_X - this.char_size_x, this.pos_x + calcSpeed(speed)); }
@@ -136,17 +229,22 @@
   function Hud (player) {
     this.pos_z = 1000;
     
+    var char_size_x = player.char_size_x;
+    var char_size_y = player.char_size_y;
+    
+    this.sprite = new Sprite ("hud", char_size_x, char_size_y);
+    this.sprite.seq = [0,1];
+    
     this.draw = function (ctx) {
       var pos_x = player.pos_x;
-      var pos_y = player.pos_y;
-      var char_size_x = player.char_size_x;
-      var char_size_y = player.char_size_y;
+      var pos_y = player.pos_y;  
+      
       // p1  p2
       // p3  p4
       // Project just p1-p4 diagonal and deduce p2 and p3
       var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
       var p4 = project([pos_x - SCREEN_X / 2 + char_size_x, pos_y + char_size_y - SCREEN_Y / 2, this.pos_z]);
-      var p2 = [p4[0], p1[1], this.pos_z];
+/*      var p2 = [p4[0], p1[1], this.pos_z];
       var p3 = [p1[0], p4[1], this.pos_z];
 
       var hud_size = 3;
@@ -169,7 +267,8 @@
       ctx.lineTo(p4[0], p4[1]);
       ctx.lineTo(p4[0] - hud_size, p4[1]);
 
-      ctx.stroke();
+      ctx.stroke();*/
+      this.sprite.draw (ctx, pos_x, pos_y, this.pos_z);
     }
   }
 
@@ -179,12 +278,15 @@
     this.bullet_size = 3;
     this.bullets = [];  // reverse sorted by Z
     
+    this.sprite = new Sprite ("bullet", this.bullet_size, this.bullet_size);
+    
     this.draw = function draw (ctx, i) {
       var bullet = this.bullets[i];
       var p1 = project([bullet[0] - SCREEN_X / 2, bullet[1] - SCREEN_Y / 2, bullet[2]]);
       var brightness = parseInt(255 * (bullet_max_depth - bullet[2]) / bullet_max_depth, 10);
       ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
       ctx.fillRect(p1[0], p1[1], this.bullet_size, this.bullet_size);
+      //imgSprite.draw(ctx,bullet[0], bullet[1], bullet[2])
     }
     this.move = function move () {
       for (var i = 0; i < this.bullets.length; i++) {
@@ -202,9 +304,10 @@
     }
   }
   
+
   function Enemy (x, y, z) {
-    this.size_x = 30;
-    this.size_y = 30;
+    this.size_x = 64;
+    this.size_y = 64;
     this.pos_x = x;
     this.pos_y = y;
     this.pos_z = z;
@@ -212,16 +315,23 @@
     
     var speed = 2;
 
-    this.draw = function (ctx, timestamp) {
-      var pos_x = this.pos_x;
-      var pos_y = this.pos_y;
-      var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
-      var p4 = project([pos_x - SCREEN_X / 2 + this.size_x, pos_y + this.size_y - SCREEN_Y / 2, this.pos_z]);
-      
-      var msSinceHit = timestamp - this.hit;
+    this.sprite = new Sprite ("enemy", this.size_x, this.size_y);
+    this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
+
+    var timestamp=0;
+    var animMs = 100;
+    var state = 0;
+    
+    this.draw = function (ctx, ts) { 
+/*      var msSinceHit = ts - this.hit;
       var delay = 500;
       ctx.fillStyle = msSinceHit < delay ? "rgb(255,"+(255*(1-msSinceHit/delay))+","+(255*(1-msSinceHit/delay))+")" : "red";
-      ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+      ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);*/
+      if (ts - timestamp >= animMs){
+        this.sprite.next();    
+        timestamp = ts;
+      }
+      this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z);
     }
     
     var moves = [[speed, 0, 0], [-speed, 0, 0]]
@@ -246,26 +356,19 @@
     this.state = 0;
     
     var timestamp = ts;
-    var seq = [2, 3, 3, 2, 1, 0];
     
-    var imgExplosion = new Image ();
-    imgExplosion.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577";
+    var spriteExplosion = new Sprite ("explosion", 128, 128);
+    spriteExplosion.seq = [2, 3, 3, 2, 1, 0];
     
-    var SPRITE_SIZE=128;
     var durationMs = 250;
-        
+       
     this.update = function (now){
       var elapsed = now - timestamp; 
-      this.state = elapsed <= durationMs ? Math.floor(elapsed / durationMs * seq.length)  : -1;
+      spriteExplosion.state = elapsed <= durationMs ? Math.floor(elapsed / durationMs * spriteExplosion.seq.length)  : -1;
     }
+    this.isFinished = function () { return (spriteExplosion.state == -1); }
     this.draw = function (ctx){
-      var offsetX = seq[this.state]*SPRITE_SIZE;
-      var offsetY = 0;
-      
-      var p1 = project([this.pos_x - SCREEN_X / 2 - SPRITE_SIZE/2, this.pos_y - SCREEN_Y / 2 - SPRITE_SIZE/2, this.pos_z]);
-      var p4 = project([this.pos_x - SCREEN_X / 2 - SPRITE_SIZE/2 + SPRITE_SIZE, this.pos_y + SPRITE_SIZE - SCREEN_Y / 2 - SPRITE_SIZE/2, this.pos_z]);
-
-      ctx.drawImage(imgExplosion, offsetX, offsetY, SPRITE_SIZE, SPRITE_SIZE, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+      spriteExplosion.drawCentered(ctx, this.pos_x, this.pos_y, this.pos_z);
     }
   }
 
@@ -366,8 +469,8 @@
     var bullets = new Bullets (player);
     var control = new Control ();
     var sound = new Sound ();
-    var enemies = [new Enemy (0, SCREEN_Y * 0.1, 1100), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 900), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 700)];
     var explosions = [];
+    var enemies = [];
 
     var imgSaturn = new Image();
     imgSaturn.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
@@ -440,7 +543,7 @@
           }while (curr_bullet<bullets.bullets.length && bullets.bullets[curr_bullet]==null);
         }
         if (z_player == z) {
-          obj_player[curr_player++].draw (ctx);
+          obj_player[curr_player++].draw (ctx, timestamp);
         }
         if (z_enemy == z) {
           enemies[curr_enemy++].draw (ctx, timestamp);
@@ -480,30 +583,93 @@
       }
       explosions.splice (zOrder, 0, explosion);  // TODO: in-order insert
     }
+    
+    
+    // improved with http://jsfiddle.net/h5qba8v9/3/
+    function collisionBox (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
+      return  (x1 < x2 + w2 && x2 < x1 + w1 &&
+        y1 < y2 + h2 && y2 < h1 + y1 &&
+        z1 < z2 + d2 && z2 < z1 + d1);
+    }
+
+    // Intersection diagonal: [[x1,y1][x4,y4]]
+    function overlapRect (r1x1, r1y1, r1x2, r1y2, r2x1, r2y1, r2x2, r2y2) {
+      var overlap = [[Math.max(r1x1, r2x1), Math.max(r1y1, r2y1)],
+             [Math.min(r1x2, r2x2), Math.min(r1y2, r2y2)]];
+      if (overlap[0][0]<overlap[1][0] && overlap[0][1]<overlap[1][1]){
+        return overlap;
+      } else {
+        return null;
+      }
+    }
+
+    function collisionSprite (x1, y1, sprite1, x2, y2, sprite2) {
+      //alert ("collisionSprite: "+x1+", "+y1+" vs "+x2+","+y2);
+
+      var overlap = overlapRect (x1, y1, x1 + sprite1.width, y1 + sprite1.height,
+                                x2, y2, x2 + sprite2.width, y2 + sprite2.height);
+      if (overlap == null) {return false;}
+      var overlap_w = overlap[1][0]-overlap[0][0];
+      var overlap_h = overlap[1][1]-overlap[0][1];
+/*    var data1 = sprite1.getImageData (overlap[0][0]-x1, overlap[0][1]-y1, overlap_w, overlap_h);
+      var data2 = sprite2.getImageData (overlap[0][0]-x2, overlap[0][1]-y2, overlap_w, overlap_h);
+      var half_w = Math.floor (overlap_w/2);
+      var half_h = Math.floor (overlap_h/2);
+      // 5 points (corners + center) enough for 3x3 bullets. Use a 9-point one for larger objects. 
+      var points = [0, overlap_w-1, 
+        half_h* overlap_w + half_w, 
+        (overlap_h-1)*overlap_w, overlap_h*overlap_w-1];
+      for (var i=0; i<points.length; i++){
+        var base = points[i]*4;
+        if (data1[base+3] != 0 && data2[base+3] != 0){
+          return true;
+        }
+      }*/
+      var half_w = Math.floor (overlap_w/2);
+      var half_h = Math.floor (overlap_h/2);
+      var base1_x = overlap[0][0]-x1;
+      var base1_y = overlap[0][1]-y1;
+      var base2_x = overlap[0][0]-x2;
+      var base2_y = overlap[0][1]-y2;
+      // 5 points (corners + center) enough for 3x3 bullets. Use a 9-point one for larger objects. 
+      if (sprite1.getMaskPixel(base1_x, base1_y) != 0 
+          && sprite2.getMaskPixel(base2_x, base2_y) != 0){ return true; }
+      if (sprite1.getMaskPixel(base1_x + overlap_w-1, base1_y) != 0 
+          && sprite2.getMaskPixel(base2_x + overlap_w-1, base2_y) != 0){ return true; }
+      if (sprite1.getMaskPixel(base1_x + half_w, base1_y + half_h) != 0 
+          && sprite2.getMaskPixel(base2_x + half_w, base2_y + half_h) != 0){ return true; }
+      if (sprite1.getMaskPixel(base1_x, base1_y + overlap_h - 1) != 0 
+          && sprite2.getMaskPixel(base2_x, base2_y + overlap_h -1) != 0){ return true; }
+      if (sprite1.getMaskPixel(base1_x + overlap_w-1, base1_y + overlap_h - 1) != 0 
+          && sprite2.getMaskPixel(base2_x + overlap_w-1, base2_y + overlap_h -1) != 0){ return true; }
+      return false;
+    }
+    
     var doCollisions = function (timestamp) {
       for (var i=0; i< bullets.bullets.length; i++){
         var bullet = bullets.bullets[i];
         for (var j=0; j<enemies.length; j++) {
           var enemy = enemies[j];
           if (bullet != null) {
-            if (collision (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
+            if (collisionBox (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
-              sound.hit (1 - enemy.pos_z / 2000);
-              bullets.bullets[i] = null;
-              enemy.hit = timestamp;
-              addExplosion (bullet[0]+bullets.bullet_size/2, bullet[1]+bullets.bullet_size/2, bullet[2], timestamp);
-              score.hit ();
+              if (collisionSprite (bullet[0], bullet[1], bullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
+                sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
+                bullets.bullets[i] = null;
+                enemy.hit = timestamp;
+                addExplosion (bullet[0]+bullets.bullet_size/2, bullet[1]+bullets.bullet_size/2, bullet[2], timestamp);
+                score.hit ();
+              }
             }
           }          
         }
       }  
     }
-    
 
     var moveExplosions = function (timestamp) {
       for (var i =0 ; i<explosions.length; i++){
         explosions[i].update(timestamp);
-        if (explosions[i].state==-1){
+        if (explosions[i].isFinished ()){
           explosions.splice(i,1);
         }
       }
@@ -512,7 +678,7 @@
       doControl();
       grid.move ();
       for (var i=0;i<enemies.length;i++){
-        enemies[i].move(timestamp);
+        //enemies[i].move(timestamp);
       }
       doCollisions (timestamp);
       moveExplosions (timestamp);
@@ -520,15 +686,43 @@
       draw(timestamp);
       window.requestAnimationFrame(render);
     }
-        
+    
+    
+    var setSize = function () {
+      var ctx = document.getElementById("canvas").getContext("2d");
+      
+      var ww=window.innerWidth;
+      var wh=window.innerHeight;
+      
+      var pref_w = 800;
+      var pref_h = 400;
+      
+      if (ww / pref_w < wh / pref_h){
+        SCREEN_X = Math.min (pref_w, window.innerWidth);
+        SCREEN_Y = SCREEN_X / 2;
+      } else {
+        SCREEN_Y = Math.min (pref_h, window.innerHeight);
+        SCREEN_X = SCREEN_Y * 2;
+      }
+      ctx.canvas.width = SCREEN_X
+      ctx.canvas.height = SCREEN_Y;
+    }
     this.start = function () {
       control.enable ();
+      setSize ();
+      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200), new Enemy (SCREEN_X/2, SCREEN_Y * 0.80, 800)];
+      //window.addEventListener('resize', setSize, false);
+      //window.addEventListener('orientationchange', setSize, false);
+      //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
+      window.addEventListener('orientationchange', setSize, false);
       window.requestAnimationFrame(render);  
     }
+    
   }
 
+
   function start() {
-    new Game().start();
+    new Game().start ();
   }
 
   start();
