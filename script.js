@@ -678,7 +678,7 @@
       doControl();
       grid.move ();
       for (var i=0;i<enemies.length;i++){
-        //enemies[i].move(timestamp);
+        enemies[i].move(timestamp);
       }
       doCollisions (timestamp);
       moveExplosions (timestamp);
@@ -710,7 +710,7 @@
     this.start = function () {
       control.enable ();
       setSize ();
-      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200), new Enemy (SCREEN_X/2, SCREEN_Y * 0.80, 800)];
+      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 800)];
       //window.addEventListener('resize', setSize, false);
       //window.addEventListener('orientationchange', setSize, false);
       //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
