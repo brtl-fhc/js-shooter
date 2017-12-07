@@ -12,7 +12,6 @@
     return ret;
   }
 
-
   function ImageCache (){
     this.images = {};
     var loaded = [];
@@ -20,11 +19,11 @@
     var masks = {};
     
     var assets = [
-      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon.png?1511798071897"],
-      ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463"],
-      ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435"],
-      ["enemy", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535"],
-      ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577"],
+      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon.png?1511798071897", true],
+      ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463", false],
+      ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
+      ["enemy", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
+      ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577", false],
     ]
     
     var convertImageToCanvas = function (image) {
@@ -50,28 +49,23 @@
       var image = this.images[name];
       return masks[name][(image.width*abs_y)+abs_x];
     }
-    this.load = function (name, url){
+    this.load = function (name, url, solid){
       var img = new Image ();
       img.crossOrigin = "Anonymous";
       this.images[name] = img;
       img.src = url;
       img.onload = function () { 
         loaded.push(name);
-        calculateMask(name, img);
+        if (solid) {
+          calculateMask(name, img);
+        }
       }
     }
     
     this.done = function () { return (loaded.length == assets.length); }
-    
-    this.getImageData = function (name, abs_x, abs_y, w, h){
-      if (!canvases[name]) {
-        canvases[name] = convertImageToCanvas (this.images[name]).getContext("2d");
-      }
-      return canvases[name].getImageData (abs_x, abs_y, w, h).data;
-    }
-    
+        
     for (var i=0; i<assets.length; i++) { 
-      this.load (assets[i][0], assets[i][1]);
+      this.load (assets[i][0], assets[i][1], assets[i][2], assets[i][3]);
     }
   }
   
@@ -106,11 +100,6 @@
 
       ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
     }
-    this.getImageData = function (x, y, w, h) {
-      var offsetX = this.seq[this.state]*this.width;
-      var offsetY = 0;
-      return imageCache.getImageData (this.image, offsetX+x, offsetY+y, w, h);
-    }
     this.getMaskPixel = function (x, y) {
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
@@ -136,7 +125,6 @@
         this.points.push([x, y, z]);
       }
     }
-    
     
     this.rotate = function (p) {
       return [
@@ -167,7 +155,6 @@
           ctx.lineTo(p2[0], p2[1]);
         }
         ctx.stroke();
-
     }
     
     this.move = function () {
@@ -192,7 +179,6 @@
       this.rot_cos = Math.cos(this.rot_ang);
     }
   }
-
 
   function Player (){
     var char_speed = 8;
@@ -235,39 +221,11 @@
     this.sprite = new Sprite ("hud", char_size_x, char_size_y);
     this.sprite.seq = [0,1];
     
+    this.setLocked = function (locked) { this.sprite.state = locked? 1 : 0; }
     this.draw = function (ctx) {
       var pos_x = player.pos_x;
-      var pos_y = player.pos_y;  
+      var pos_y = player.pos_y;
       
-      // p1  p2
-      // p3  p4
-      // Project just p1-p4 diagonal and deduce p2 and p3
-      var p1 = project([pos_x - SCREEN_X / 2, pos_y - SCREEN_Y / 2, this.pos_z]);
-      var p4 = project([pos_x - SCREEN_X / 2 + char_size_x, pos_y + char_size_y - SCREEN_Y / 2, this.pos_z]);
-/*      var p2 = [p4[0], p1[1], this.pos_z];
-      var p3 = [p1[0], p4[1], this.pos_z];
-
-      var hud_size = 3;
-      ctx.strokeStyle = "yellow";
-      ctx.beginPath();
-
-      ctx.moveTo(p1[0], p1[1] + hud_size);
-      ctx.lineTo(p1[0], p1[1]);
-      ctx.lineTo(p1[0] + hud_size, p1[1]);
-
-      ctx.moveTo(p2[0] - hud_size, p2[1]);
-      ctx.lineTo(p2[0], p2[1]);
-      ctx.lineTo(p2[0], p2[1] + hud_size);
-
-      ctx.moveTo(p3[0], p3[1] - hud_size);
-      ctx.lineTo(p3[0], p3[1]);
-      ctx.lineTo(p3[0] + hud_size, p3[1]);
-
-      ctx.moveTo(p4[0], p4[1] - hud_size);
-      ctx.lineTo(p4[0], p4[1]);
-      ctx.lineTo(p4[0] - hud_size, p4[1]);
-
-      ctx.stroke();*/
       this.sprite.draw (ctx, pos_x, pos_y, this.pos_z);
     }
   }
@@ -304,7 +262,6 @@
     }
   }
   
-
   function Enemy (x, y, z) {
     this.size_x = 64;
     this.size_y = 64;
@@ -349,7 +306,7 @@
     }
   }
 
-  function Explosion (x, y, z, ts) {
+  function SmallExplosion (x, y, z, ts) {
     this.pos_x = x;
     this.pos_y = y;
     this.pos_z = z;
@@ -469,7 +426,7 @@
     var bullets = new Bullets (player);
     var control = new Control ();
     var sound = new Sound ();
-    var explosions = [];
+    var fx = [];
     var enemies = [];
 
     var imgSaturn = new Image();
@@ -520,7 +477,7 @@
       var curr_bullet = 0;
       var curr_enemy = 0;
       var curr_player = 0;
-      var curr_explosion = 0;
+      var curr_fx = 0;
       
       var obj_player = [hud, player];
       
@@ -530,7 +487,7 @@
         var z_bullet = curr_bullet < bullets.bullets.length ? bullets.bullets[curr_bullet][2]:0;
         var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : 0;
         var z_enemy = curr_enemy < enemies.length? enemies [curr_enemy].pos_z : 0;
-        var z_explosion = curr_explosion < explosions.length? explosions [curr_explosion].pos_z : 0;
+        var z_fx = curr_fx < fx.length? fx [curr_fx].pos_z : 0;
 
         z = Math.max (z_bullet, Math.max (z_player, z_enemy));
         if (z < ZS){
@@ -548,8 +505,8 @@
         if (z_enemy == z) {
           enemies[curr_enemy++].draw (ctx, timestamp);
         }
-        if (z_explosion == z) {
-          explosions[curr_explosion++].draw (ctx, timestamp);
+        if (z_fx == z) {
+          fx[curr_fx++].draw (ctx, timestamp);
         }
       }
     }
@@ -575,21 +532,25 @@
       }
     }
     
-    var addExplosion = function (x, y, z, timestamp){
-      var explosion = new Explosion (x, y, z, timestamp);
+    var addFX = function (newFX){
       var zOrder = 0;
-      while (zOrder < explosions.length && explosions[zOrder].pos_z>z){
+      while (zOrder < fx.length && fx[zOrder].pos_z>newFX.pos_z){
         zOrder++;
       }
-      explosions.splice (zOrder, 0, explosion);  // TODO: in-order insert
+      fx.splice (zOrder, 0, newFX);  // TODO: in-order insert
     }
     
     
     // improved with http://jsfiddle.net/h5qba8v9/3/
-    function collisionBox (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
+    function collisionBox3D (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
       return  (x1 < x2 + w2 && x2 < x1 + w1 &&
         y1 < y2 + h2 && y2 < h1 + y1 &&
         z1 < z2 + d2 && z2 < z1 + d1);
+    }
+    
+    function collisionBox2D (x1, y1, w1, h1, x2, y2, w2, h2) {
+      return  (x1 < x2 + w2 && x2 < x1 + w1 &&
+        y1 < y2 + h2 && y2 < h1 + y1);
     }
 
     // Intersection diagonal: [[x1,y1][x4,y4]]
@@ -611,20 +572,7 @@
       if (overlap == null) {return false;}
       var overlap_w = overlap[1][0]-overlap[0][0];
       var overlap_h = overlap[1][1]-overlap[0][1];
-/*    var data1 = sprite1.getImageData (overlap[0][0]-x1, overlap[0][1]-y1, overlap_w, overlap_h);
-      var data2 = sprite2.getImageData (overlap[0][0]-x2, overlap[0][1]-y2, overlap_w, overlap_h);
-      var half_w = Math.floor (overlap_w/2);
-      var half_h = Math.floor (overlap_h/2);
-      // 5 points (corners + center) enough for 3x3 bullets. Use a 9-point one for larger objects. 
-      var points = [0, overlap_w-1, 
-        half_h* overlap_w + half_w, 
-        (overlap_h-1)*overlap_w, overlap_h*overlap_w-1];
-      for (var i=0; i<points.length; i++){
-        var base = points[i]*4;
-        if (data1[base+3] != 0 && data2[base+3] != 0){
-          return true;
-        }
-      }*/
+
       var half_w = Math.floor (overlap_w/2);
       var half_h = Math.floor (overlap_h/2);
       var base1_x = overlap[0][0]-x1;
@@ -651,26 +599,37 @@
         for (var j=0; j<enemies.length; j++) {
           var enemy = enemies[j];
           if (bullet != null) {
-            if (collisionBox (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
+            if (collisionBox3D (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
               if (collisionSprite (bullet[0], bullet[1], bullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
                 sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
                 bullets.bullets[i] = null;
                 enemy.hit = timestamp;
-                addExplosion (bullet[0]+bullets.bullet_size/2, bullet[1]+bullets.bullet_size/2, bullet[2], timestamp);
+                addFX (new SmallExplosion (bullet[0]+bullets.bullet_size/2, bullet[1]+bullets.bullet_size/2, bullet[2], timestamp));
                 score.hit ();
               }
             }
           }          
         }
-      }  
+      }
+      var enemy = null;
+      var locked = false;
+      for (var i=0; i<enemies.length; i++) {
+        enemy = enemies[i];
+        if (collisionBox2D (player.pos_x, player.pos_y, player.char_size_x, player.char_size_y,
+                           enemy.pos_x, enemy.pos_y, enemy.size_x, enemy.size_y)){
+          locked = true;
+          break;
+        }
+      }
+      hud.setLocked (locked);
     }
 
-    var moveExplosions = function (timestamp) {
-      for (var i =0 ; i<explosions.length; i++){
-        explosions[i].update(timestamp);
-        if (explosions[i].isFinished ()){
-          explosions.splice(i,1);
+    var moveFX = function (timestamp) {
+      for (var i =0 ; i<fx.length; i++){
+        fx[i].update(timestamp);
+        if (fx[i].isFinished ()){
+          fx.splice(i,1);
         }
       }
     }
@@ -681,7 +640,7 @@
         enemies[i].move(timestamp);
       }
       doCollisions (timestamp);
-      moveExplosions (timestamp);
+      moveFX (timestamp);
       bullets.move (timestamp);
       draw(timestamp);
       window.requestAnimationFrame(render);
