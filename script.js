@@ -258,16 +258,18 @@
       }
     }
     this.fire = function () {
-      this.bullets.push([player.pos_x-1, player.pos_y + player.char_size_y / 2, ZS]);
-      this.bullets.push([player.pos_x + player.char_size_x, player.pos_y + player.char_size_y / 2, ZS]);
+      this.bullets.push([player.pos_x-1, player.pos_y + player.char_size_y / 2, player.pos_z]);
+      this.bullets.push([player.pos_x + player.char_size_x, player.pos_y + player.char_size_y / 2, player.pos_z]);
     }
   }
   
   function EnemyBullets () {
-    var EnemyBullet = function (x, y, z, speed_z) {
+    var EnemyBullet = function (x, y, z, speed_x, speed_y, speed_z) {
       this.pos_x = x;
       this.pos_y = y;
       this.pos_z = z;
+      this.speed_x = speed_x;
+      this.speed_y = speed_y;
       this.speed_z = speed_z;
 
       this.size_x = 32;
@@ -278,41 +280,45 @@
     }
     
     this.bullets = [];
-    this.fire = function (x, y, z, speed_z) {
+    this.fire = function (x, y, z, speed_x, speed_y, speed_z) {
       var zOrder = 0;
       while (zOrder < this.bullets.length && this.bullets[zOrder].pos_z > z){
         zOrder++;
       }
-      this.bullets.splice (zOrder, 0,new EnemyBullet (x, y, z, speed_z));  // in-order insert
-      console.log ("enemy bullets+:"+this.bullets.length);
+      this.bullets.splice (zOrder, 0, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z));  // in-order insert
     }
     
     this.move = function () {
+      var z_limit = 50;
       var z = null;
+      var bullet = null;
       for (var i=0; i<this.bullets.length; i++){
-        if (this.bullets[i] != null){
-          z = this.bullets[i].pos_z - this.bullets[i].speed_z; 
-          if (z < ZS) {
+        bullet = this.bullets[i];
+        if (bullet != null){
+          z = bullet.pos_z - bullet.speed_z; 
+          if (z < z_limit) {
             this.bullets[i] = null;
           } else {
-            this.bullets[i].pos_z = z;
+            bullet.pos_z = z;
+            bullet.pos_x = bullet.pos_x + bullet.speed_x;
+            bullet.pos_y = bullet.pos_y + bullet.speed_y;
           }
         }
       }
-      while (this.bullets.length > 0 && (this.bullets[this.bullets.length-1] == null || this.bullets[this.bullets.length-1]< ZS )) {
+      while (this.bullets.length > 0 && (this.bullets[this.bullets.length-1] == null || this.bullets[this.bullets.length-1]< z_limit )) {
         this.bullets.pop();
-        console.log ("enemy bullets-:"+this.bullets.length);
       }
     }
   }
 
-  function Enemy (x, y, z, bullets) {
+  function Enemy (x, y, z, bullets, player) {
     this.size_x = 64;
     this.size_y = 64;
     this.pos_x = x;
     this.pos_y = y;
     this.pos_z = z;
     this.hit = 0;
+    this.player = player;
     
     var enemyBullets = bullets;
     
@@ -340,8 +346,8 @@
     var moves = [[speed, 0, 0], [-speed, 0, 0]]
     var curr_move = 0;
     var last_shot = 0;
-    var time_to_fire = 1500;
-    var bullet_speed = 6;
+    var time_to_fire = 3000;
+    var bullet_speed_z = 4;
     
     this.move = function (timestamp) {
       this.pos_x += moves[curr_move][0];
@@ -353,7 +359,16 @@
         curr_move = 1;
       }
       if (timestamp-last_shot > time_to_fire){
-        enemyBullets.fire (this.pos_x, this.pos_y, this.pos_z, bullet_speed);
+        var source_x = this.pos_x+this.size_x/2;
+        var source_y = this.pos_y+this.size_y/4;
+        var bullet_speed_x = (player.pos_x - source_x) / (this.pos_z - player.pos_z)*bullet_speed_z;
+        var bullet_speed_y = (player.pos_y - source_y) / (this.pos_z - player.pos_z)*bullet_speed_z;
+        if (bullet_speed_x > 0) { bullet_speed_x = Math.min (bullet_speed_x, bullet_speed_z); }
+        else if (bullet_speed_x < 0) { bullet_speed_x = Math.max (bullet_speed_x, - bullet_speed_z); }
+        if (bullet_speed_y > 0) { bullet_speed_y = Math.min (bullet_speed_y, bullet_speed_z); }
+        else if (bullet_speed_y < 0) { bullet_speed_y = Math.max (bullet_speed_y, - bullet_speed_z); }
+
+        enemyBullets.fire (source_x, source_y, this.pos_z-1, bullet_speed_x, bullet_speed_y, bullet_speed_z);
         last_shot = timestamp;
       }
     }
@@ -538,6 +553,7 @@
       var obj_player = [hud, player];
       
       var z = 10000; // bullet_max_depth
+      var z_limit = 100;
       
       while (true){
         var z_bullet = curr_bullet < playerBullets.bullets.length ? playerBullets.bullets[curr_bullet][2]:0;
@@ -547,7 +563,7 @@
         var z_fx = curr_fx < fx.length? fx [curr_fx].pos_z : 0;
 
         z = Math.max (z_bullet, Math.max (z_enemy_bullet, Math.max (z_player, z_enemy)));
-        if (z < ZS){
+        if (z < z_limit){
           break;
         }
         if (z_bullet == z) {
@@ -734,7 +750,7 @@
     this.start = function () {
       control.enable ();
       setSize ();
-      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600, enemyBullets), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200, enemyBullets), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 800, enemyBullets)];
+      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600, enemyBullets, player), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200, enemyBullets, player), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 800, enemyBullets, player)];
       //window.addEventListener('resize', setSize, false);
       //window.addEventListener('orientationchange', setSize, false);
       //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
