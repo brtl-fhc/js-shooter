@@ -23,6 +23,7 @@
       ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463", false],
       ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
       ["enemy", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
+      ["enemy_bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy_bullet.png?1512649438982", true],
       ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577", false],
     ]
     
@@ -230,7 +231,7 @@
     }
   }
 
-  function Bullets (player) {
+  function PlayerBullets (player) {
     var bullet_max_depth = 10000;
     this.bullet_speed = 50;
     this.bullet_size = 3;
@@ -262,13 +263,58 @@
     }
   }
   
-  function Enemy (x, y, z) {
+  function EnemyBullets () {
+    var EnemyBullet = function (x, y, z, speed_z) {
+      this.pos_x = x;
+      this.pos_y = y;
+      this.pos_z = z;
+      this.speed_z = speed_z;
+
+      this.size_x = 32;
+      this.size_y = 32;
+      this.sprite = new Sprite ("enemy_bullet", this.size_x, this.size_y);
+
+      this.draw = function (ctx) { this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z); }
+    }
+    
+    this.bullets = [];
+    this.fire = function (x, y, z, speed_z) {
+      var zOrder = 0;
+      while (zOrder < this.bullets.length && this.bullets[zOrder].pos_z > z){
+        zOrder++;
+      }
+      this.bullets.splice (zOrder, 0,new EnemyBullet (x, y, z, speed_z));  // in-order insert
+      console.log ("enemy bullets+:"+this.bullets.length);
+    }
+    
+    this.move = function () {
+      var z = null;
+      for (var i=0; i<this.bullets.length; i++){
+        if (this.bullets[i] != null){
+          z = this.bullets[i].pos_z - this.bullets[i].speed_z; 
+          if (z < ZS) {
+            this.bullets[i] = null;
+          } else {
+            this.bullets[i].pos_z = z;
+          }
+        }
+      }
+      while (this.bullets.length > 0 && (this.bullets[this.bullets.length-1] == null || this.bullets[this.bullets.length-1]< ZS )) {
+        this.bullets.pop();
+        console.log ("enemy bullets-:"+this.bullets.length);
+      }
+    }
+  }
+
+  function Enemy (x, y, z, bullets) {
     this.size_x = 64;
     this.size_y = 64;
     this.pos_x = x;
     this.pos_y = y;
     this.pos_z = z;
     this.hit = 0;
+    
+    var enemyBullets = bullets;
     
     var speed = 2;
 
@@ -293,8 +339,11 @@
     
     var moves = [[speed, 0, 0], [-speed, 0, 0]]
     var curr_move = 0;
+    var last_shot = 0;
+    var time_to_fire = 1500;
+    var bullet_speed = 6;
     
-    this.move = function () {
+    this.move = function (timestamp) {
       this.pos_x += moves[curr_move][0];
       this.pos_y += moves[curr_move][1];
       this.pos_z += moves[curr_move][2];
@@ -302,6 +351,10 @@
         curr_move = 0;
       } else if (this.pos_x >= SCREEN_X-this.size_x){
         curr_move = 1;
+      }
+      if (timestamp-last_shot > time_to_fire){
+        enemyBullets.fire (this.pos_x, this.pos_y, this.pos_z, bullet_speed);
+        last_shot = timestamp;
       }
     }
   }
@@ -423,7 +476,9 @@
     var grid = new Grid ();
     var player = new Player ();
     var hud = new Hud (player);
-    var bullets = new Bullets (player);
+    var playerBullets = new PlayerBullets (player);
+    var enemyBullets = new EnemyBullets (player);
+
     var control = new Control ();
     var sound = new Sound ();
     var fx = [];
@@ -475,6 +530,7 @@
     
     var drawObjects = function (ctx, timestamp) {
       var curr_bullet = 0;
+      var curr_enemy_bullet = 0;
       var curr_enemy = 0;
       var curr_player = 0;
       var curr_fx = 0;
@@ -484,21 +540,29 @@
       var z = 10000; // bullet_max_depth
       
       while (true){
-        var z_bullet = curr_bullet < bullets.bullets.length ? bullets.bullets[curr_bullet][2]:0;
+        var z_bullet = curr_bullet < playerBullets.bullets.length ? playerBullets.bullets[curr_bullet][2]:0;
+        var z_enemy_bullet = curr_enemy_bullet < enemyBullets.bullets.length ? enemyBullets.bullets[curr_enemy_bullet].pos_z:0;
         var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : 0;
         var z_enemy = curr_enemy < enemies.length? enemies [curr_enemy].pos_z : 0;
         var z_fx = curr_fx < fx.length? fx [curr_fx].pos_z : 0;
 
-        z = Math.max (z_bullet, Math.max (z_player, z_enemy));
+        z = Math.max (z_bullet, Math.max (z_enemy_bullet, Math.max (z_player, z_enemy)));
         if (z < ZS){
           break;
         }
         if (z_bullet == z) {
-          bullets.draw (ctx, curr_bullet);
+          playerBullets.draw (ctx, curr_bullet);
           do {
             curr_bullet++
-          }while (curr_bullet<bullets.bullets.length && bullets.bullets[curr_bullet]==null);
+          }while (curr_bullet<playerBullets.bullets.length && playerBullets.bullets[curr_bullet]==null);
         }
+        if (z_enemy_bullet == z) {
+          enemyBullets.bullets [curr_enemy_bullet].draw (ctx);
+          do {
+            curr_enemy_bullet++
+          }while (curr_enemy_bullet<enemyBullets.bullets.length && enemyBullets.bullets[curr_enemy_bullet]==null);
+        }
+
         if (z_player == z) {
           obj_player[curr_player++].draw (ctx, timestamp);
         }
@@ -528,7 +592,7 @@
       }
       if (control.isFirePressed ()) {
         sound.shot (0.5);
-        bullets.fire ();
+        playerBullets.fire ();
       }
     }
     
@@ -537,7 +601,7 @@
       while (zOrder < fx.length && fx[zOrder].pos_z>newFX.pos_z){
         zOrder++;
       }
-      fx.splice (zOrder, 0, newFX);  // TODO: in-order insert
+      fx.splice (zOrder, 0, newFX);  // in-order insert
     }
     
     
@@ -594,18 +658,18 @@
     }
     
     var doCollisions = function (timestamp) {
-      for (var i=0; i< bullets.bullets.length; i++){
-        var bullet = bullets.bullets[i];
+      for (var i=0; i< playerBullets.bullets.length; i++){
+        var bullet = playerBullets.bullets[i];
         for (var j=0; j<enemies.length; j++) {
           var enemy = enemies[j];
           if (bullet != null) {
-            if (collisionBox3D (bullet[0], bullet[1], bullet[2], bullets.bullet_size, bullets.bullet_size, bullets.bullet_speed,
+            if (collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
-              if (collisionSprite (bullet[0], bullet[1], bullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
+              if (collisionSprite (bullet[0], bullet[1], playerBullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
                 sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
-                bullets.bullets[i] = null;
+                playerBullets.bullets[i] = null;
                 enemy.hit = timestamp;
-                addFX (new SmallExplosion (bullet[0]+bullets.bullet_size/2, bullet[1]+bullets.bullet_size/2, bullet[2], timestamp));
+                addFX (new SmallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp));
                 score.hit ();
               }
             }
@@ -641,7 +705,8 @@
       }
       doCollisions (timestamp);
       moveFX (timestamp);
-      bullets.move (timestamp);
+      playerBullets.move (timestamp);
+      enemyBullets.move ();
       draw(timestamp);
       window.requestAnimationFrame(render);
     }
@@ -669,7 +734,7 @@
     this.start = function () {
       control.enable ();
       setSize ();
-      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 800)];
+      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600, enemyBullets), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200, enemyBullets), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 800, enemyBullets)];
       //window.addEventListener('resize', setSize, false);
       //window.addEventListener('orientationchange', setSize, false);
       //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
