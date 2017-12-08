@@ -23,7 +23,7 @@
       ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463", false],
       ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
       ["enemy", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
-      ["enemy_bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy_bullet.png?1512649438982", true],
+      ["enemy_bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy_bullet.png?1512727629879", true],
       ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577", false],
     ]
     
@@ -183,43 +183,43 @@
 
   function Player (){
     var char_speed = 8;
-    this.char_size_x = 32;
-    this.char_size_y = 16;
+    this.size_x = 32;
+    this.size_y = 16;
 
-    this.pos_x = SCREEN_X / 2 - this.char_size_x / 2;
+    this.pos_x = SCREEN_X / 2 - this.size_x / 2;
     this.pos_y = SCREEN_Y * 0.30;
     this.pos_z = ZS;
     
-    var spritePlayer = new Sprite ("player", this.char_size_x, this.char_size_y);
-    spritePlayer.seq = [0,1];
+    this.sprite = new Sprite ("player", this.size_x, this.size_y);
+    this.sprite.seq = [0,1];
     
     var timestamp=0;
     var animMs = 250;
     
     this.draw = function (ctx, ts) {
       if (ts - timestamp >= animMs){
-        spritePlayer.next(); 
+        this.sprite.next(); 
         timestamp = ts;
       }
-      spritePlayer.draw (ctx, this.pos_x, this.pos_y, this.pos_z);
+      this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z);
     }
     
     var calcSpeed = function (speed) {
       return !speed? char_speed : Math.floor(Math.min (speed, char_speed));
     }
     this.moveLeft = function (speed) { this.pos_x = Math.max(0, this.pos_x - calcSpeed(speed)); }
-    this.moveRight = function (speed) { this.pos_x = Math.min(SCREEN_X - this.char_size_x, this.pos_x + calcSpeed(speed)); }
+    this.moveRight = function (speed) { this.pos_x = Math.min(SCREEN_X - this.size_x, this.pos_x + calcSpeed(speed)); }
     this.moveUp = function (speed) { this.pos_y = Math.max(0, this.pos_y - calcSpeed(speed)); }
-    this.moveDown = function (speed) { this.pos_y = Math.min(SCREEN_Y - this.char_size_y, this.pos_y + calcSpeed(speed)); }
+    this.moveDown = function (speed) { this.pos_y = Math.min(SCREEN_Y - this.size_y, this.pos_y + calcSpeed(speed)); }
   }  
 
   function Hud (player) {
     this.pos_z = 1000;
     
-    var char_size_x = player.char_size_x;
-    var char_size_y = player.char_size_y;
+    var size_x = player.size_x;
+    var size_y = player.size_y;
     
-    this.sprite = new Sprite ("hud", char_size_x, char_size_y);
+    this.sprite = new Sprite ("hud", size_x, size_y);
     this.sprite.seq = [0,1];
     
     this.setLocked = function (locked) { this.sprite.state = locked? 1 : 0; }
@@ -258,13 +258,15 @@
       }
     }
     this.fire = function () {
-      this.bullets.push([player.pos_x-1, player.pos_y + player.char_size_y / 2, player.pos_z]);
-      this.bullets.push([player.pos_x + player.char_size_x, player.pos_y + player.char_size_y / 2, player.pos_z]);
+      this.bullets.push([player.pos_x-1, player.pos_y + player.size_y / 2, player.pos_z]);
+      this.bullets.push([player.pos_x + player.size_x, player.pos_y + player.size_y / 2, player.pos_z]);
     }
   }
   
   function EnemyBullets () {
-    var EnemyBullet = function (x, y, z, speed_x, speed_y, speed_z) {
+    this.size_x = 16;
+    this.size_y = 16;
+    var EnemyBullet = function (x, y, z, speed_x, speed_y, speed_z, size_x, size_y) {
       this.pos_x = x;
       this.pos_y = y;
       this.pos_z = z;
@@ -272,8 +274,8 @@
       this.speed_y = speed_y;
       this.speed_z = speed_z;
 
-      this.size_x = 32;
-      this.size_y = 32;
+      this.size_x = size_x;
+      this.size_y = size_y;
       this.sprite = new Sprite ("enemy_bullet", this.size_x, this.size_y);
 
       this.draw = function (ctx) { this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z); }
@@ -285,7 +287,7 @@
       while (zOrder < this.bullets.length && this.bullets[zOrder].pos_z > z){
         zOrder++;
       }
-      this.bullets.splice (zOrder, 0, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z));  // in-order insert
+      this.bullets.splice (zOrder, 0, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y));  // in-order insert
     }
     
     this.move = function () {
@@ -359,10 +361,12 @@
         curr_move = 1;
       }
       if (timestamp-last_shot > time_to_fire){
-        var source_x = this.pos_x+this.size_x/2;
-        var source_y = this.pos_y+this.size_y/4;
-        var bullet_speed_x = (player.pos_x - source_x) / (this.pos_z - player.pos_z)*bullet_speed_z;
-        var bullet_speed_y = (player.pos_y - source_y) / (this.pos_z - player.pos_z)*bullet_speed_z;
+        var source_x = this.pos_x+this.size_x/2 - enemyBullets.size_x/2;
+        var source_y = this.pos_y+this.size_y/8 - enemyBullets.size_y/2;
+        var target_x = player.pos_x + player.size_x/2 - enemyBullets.size_x/2;
+        var target_y = player.pos_y + player.size_y/2 - enemyBullets.size_y/2;
+        var bullet_speed_x = (target_x - source_x) / (this.pos_z - player.pos_z)*bullet_speed_z;
+        var bullet_speed_y = (target_y - source_y) / (this.pos_z - player.pos_z)*bullet_speed_z;
         if (bullet_speed_x > 0) { bullet_speed_x = Math.min (bullet_speed_x, bullet_speed_z); }
         else if (bullet_speed_x < 0) { bullet_speed_x = Math.max (bullet_speed_x, - bullet_speed_z); }
         if (bullet_speed_y > 0) { bullet_speed_y = Math.min (bullet_speed_y, bullet_speed_z); }
@@ -673,7 +677,16 @@
       return false;
     }
     
-    var doCollisions = function (timestamp) {
+    var doCollisions = function (timestamp){
+      for (var i=0; i < enemyBullets.bullets.length; i++){
+        var bullet = enemyBullets.bullets[i];
+        if (collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.speed_z,
+            player.pos_x, player.pos_y, player.pos_z, player.size_x, player.size_y, 1)){
+          if (collisionSprite (bullet.pos_x, bullet.pos_y, bullet.sprite, player.pos_x, player.pos_y, player.sprite)){
+            console.log ("Boom");
+          }
+        }
+      }
       for (var i=0; i< playerBullets.bullets.length; i++){
         var bullet = playerBullets.bullets[i];
         for (var j=0; j<enemies.length; j++) {
@@ -696,7 +709,7 @@
       var locked = false;
       for (var i=0; i<enemies.length; i++) {
         enemy = enemies[i];
-        if (collisionBox2D (player.pos_x, player.pos_y, player.char_size_x, player.char_size_y,
+        if (collisionBox2D (player.pos_x, player.pos_y, player.size_x, player.size_y,
                            enemy.pos_x, enemy.pos_y, enemy.size_x, enemy.size_y)){
           locked = true;
           break;
