@@ -19,7 +19,7 @@
     var masks = {};
     
     var assets = [
-      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon.png?1511798071897", true],
+      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon(3).png?1512920112975", true],
       ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463", false],
       ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
       ["enemy", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
@@ -79,11 +79,13 @@
     this.canvas = null;
     this.seq = [0];
     this.state = 0;
+    this.paint_timestamp = 0;
     
     this.next = function () {
       this.state = (this.state + 1) % this.seq.length;    
     }
-    this.draw = function(ctx, x, y, z) {
+    this.draw = function(ctx, x, y, z, ts) {
+      this.paint_timestamp = ts;
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
       
@@ -92,7 +94,8 @@
 
       ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
     }
-    this.drawCentered = function(ctx, x, y, z) {
+    this.drawCentered = function(ctx, x, y, z, ts) {
+      this.paint_timestamp = ts;
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
       
@@ -191,17 +194,20 @@
     this.pos_z = ZS;
     
     this.sprite = new Sprite ("player", this.size_x, this.size_y);
-    this.sprite.seq = [0,1];
+    this.sprite.seq = [1,2];
+    
+    var STATUS_ALIVE = 1;
+    var STATUS_DEAD = 2;
+    var STATUS_GHOST = 3;
     
     var timestamp=0;
-    var animMs = 250;
+    var animMs = 100;
     
     this.draw = function (ctx, ts) {
-      if (ts - timestamp >= animMs){
+      if (ts - this.sprite.paint_timestamp >= animMs){
         this.sprite.next(); 
-        timestamp = ts;
       }
-      this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z);
+      this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
     }
     
     var calcSpeed = function (speed) {
@@ -223,11 +229,11 @@
     this.sprite.seq = [0,1];
     
     this.setLocked = function (locked) { this.sprite.state = locked? 1 : 0; }
-    this.draw = function (ctx) {
+    this.draw = function (ctx, ts) {
       var pos_x = player.pos_x;
       var pos_y = player.pos_y;
       
-      this.sprite.draw (ctx, pos_x, pos_y, this.pos_z);
+      this.sprite.draw (ctx, pos_x, pos_y, this.pos_z, ts);
     }
   }
 
@@ -278,7 +284,7 @@
       this.size_y = size_y;
       this.sprite = new Sprite ("enemy_bullet", this.size_x, this.size_y);
 
-      this.draw = function (ctx) { this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z); }
+      this.draw = function (ctx, ts) { this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts); }
     }
     
     this.bullets = [];
@@ -331,7 +337,6 @@
 
     var timestamp=0;
     var animMs = 100;
-    var state = 0;
     
     this.draw = function (ctx, ts) { 
 /*      var msSinceHit = ts - this.hit;
@@ -339,10 +344,9 @@
       ctx.fillStyle = msSinceHit < delay ? "rgb(255,"+(255*(1-msSinceHit/delay))+","+(255*(1-msSinceHit/delay))+")" : "red";
       ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);*/
       if (ts - timestamp >= animMs){
-        this.sprite.next();    
-        timestamp = ts;
+        this.sprite.next();
       }
-      this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z);
+      this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
     }
     
     var moves = [[speed, 0, 0], [-speed, 0, 0]]
@@ -378,26 +382,53 @@
     }
   }
 
-  function SmallExplosion (x, y, z, ts) {
-    this.pos_x = x;
-    this.pos_y = y;
-    this.pos_z = z;
-    this.state = 0;
+  function FX () {
+    this.fx = [];
     
-    var timestamp = ts;
-    
-    var spriteExplosion = new Sprite ("explosion", 128, 128);
-    spriteExplosion.seq = [2, 3, 3, 2, 1, 0];
-    
-    var durationMs = 250;
-       
-    this.update = function (now){
-      var elapsed = now - timestamp; 
-      spriteExplosion.state = elapsed <= durationMs ? Math.floor(elapsed / durationMs * spriteExplosion.seq.length)  : -1;
+    function Effect (x, y, z, timestamp, durationMs) {
+      this.pos_x = x;
+      this.pos_y = y;
+      this.pos_z = z;
+
+      this.sprite = null;
+
+      this.update = function (now){
+        var elapsed = now - timestamp;
+        this.sprite.state = elapsed <= durationMs ? Math.floor(elapsed / durationMs * this.sprite.seq.length)  : -1;
+      }
+      this.isFinished = function () { return (this.sprite.state == -1); }
+      this.draw = function (ctx, ts){
+        this.sprite.drawCentered(ctx, this.pos_x, this.pos_y, this.pos_z, ts);
+      }
     }
-    this.isFinished = function () { return (spriteExplosion.state == -1); }
-    this.draw = function (ctx){
-      spriteExplosion.drawCentered(ctx, this.pos_x, this.pos_y, this.pos_z);
+    
+    this.addFX = function (newFX){
+      var zOrder = 0;
+      while (zOrder < this.fx.length && this.fx[zOrder].pos_z>newFX.pos_z){
+        zOrder++;
+      }
+      this.fx.splice (zOrder, 0, newFX);  // in-order insert
+    }
+    this.smallExplosion = function (x, y, z, ts) {
+      var newFX = new Effect (x, y, z, ts, 125);
+      newFX.sprite = new Sprite ("explosion", 128, 128);
+      newFX.sprite.seq = [2, 1, 0];
+      this.addFX (newFX);
+    }
+    this.bigExplosion = function (x, y, z, ts){
+      var newFX = new Effect (x, y, z, ts, 500);
+      newFX.sprite = new Sprite ("explosion", 128, 128);
+      newFX.sprite.seq = [2, 3, 4, 5, 6, 7, 8, 9, 0];
+      this.addFX (newFX);
+    }
+    
+    this.move = function (ts) {
+      for (var i =0 ; i<this.fx.length; i++){
+        this.fx[i].update(ts);
+        if (this.fx[i].isFinished ()){
+          this.fx.splice(i,1);
+        }
+      }
     }
   }
 
@@ -500,7 +531,7 @@
 
     var control = new Control ();
     var sound = new Sound ();
-    var fx = [];
+    var fx = new FX ();
     var enemies = [];
 
     var imgSaturn = new Image();
@@ -564,20 +595,20 @@
         var z_enemy_bullet = curr_enemy_bullet < enemyBullets.bullets.length ? enemyBullets.bullets[curr_enemy_bullet].pos_z:0;
         var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : 0;
         var z_enemy = curr_enemy < enemies.length? enemies [curr_enemy].pos_z : 0;
-        var z_fx = curr_fx < fx.length? fx [curr_fx].pos_z : 0;
+        var z_fx = curr_fx < fx.fx.length? fx.fx [curr_fx].pos_z : 0;
 
-        z = Math.max (z_bullet, Math.max (z_enemy_bullet, Math.max (z_player, z_enemy)));
+        z = Math.max (z_fx, Math.max (z_bullet, Math.max (z_enemy_bullet, Math.max (z_player, z_enemy))));
         if (z < z_limit){
           break;
         }
         if (z_bullet == z) {
-          playerBullets.draw (ctx, curr_bullet);
+          playerBullets.draw (ctx, curr_bullet, timestamp);
           do {
             curr_bullet++
           }while (curr_bullet<playerBullets.bullets.length && playerBullets.bullets[curr_bullet]==null);
         }
         if (z_enemy_bullet == z) {
-          enemyBullets.bullets [curr_enemy_bullet].draw (ctx);
+          enemyBullets.bullets [curr_enemy_bullet].draw (ctx, timestamp);
           do {
             curr_enemy_bullet++
           }while (curr_enemy_bullet<enemyBullets.bullets.length && enemyBullets.bullets[curr_enemy_bullet]==null);
@@ -590,12 +621,12 @@
           enemies[curr_enemy++].draw (ctx, timestamp);
         }
         if (z_fx == z) {
-          fx[curr_fx++].draw (ctx, timestamp);
+          fx.fx[curr_fx++].draw (ctx, timestamp);
         }
       }
     }
     
-    var doControl = function() {
+    var movePlayer = function() {
       if (control.isLeftPressed ()) {
         player.moveLeft (- control.getXSpeed ());
         grid.rotateLeft ();
@@ -615,15 +646,6 @@
         playerBullets.fire ();
       }
     }
-    
-    var addFX = function (newFX){
-      var zOrder = 0;
-      while (zOrder < fx.length && fx[zOrder].pos_z>newFX.pos_z){
-        zOrder++;
-      }
-      fx.splice (zOrder, 0, newFX);  // in-order insert
-    }
-    
     
     // improved with http://jsfiddle.net/h5qba8v9/3/
     function collisionBox3D (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
@@ -683,7 +705,7 @@
         if (collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.speed_z,
             player.pos_x, player.pos_y, player.pos_z, player.size_x, player.size_y, 1)){
           if (collisionSprite (bullet.pos_x, bullet.pos_y, bullet.sprite, player.pos_x, player.pos_y, player.sprite)){
-            console.log ("Boom");
+            fx.bigExplosion (player.pos_x+player.size_x/2,player.pos_y+player.size_y/2, player.pos_z-1, timestamp)
           }
         }
       }
@@ -698,7 +720,7 @@
                 sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
                 playerBullets.bullets[i] = null;
                 enemy.hit = timestamp;
-                addFX (new SmallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp));
+                fx.smallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
                 score.hit ();
               }
             }
@@ -718,22 +740,14 @@
       hud.setLocked (locked);
     }
 
-    var moveFX = function (timestamp) {
-      for (var i =0 ; i<fx.length; i++){
-        fx[i].update(timestamp);
-        if (fx[i].isFinished ()){
-          fx.splice(i,1);
-        }
-      }
-    }
     var render = function (timestamp) {
-      doControl();
+      movePlayer ();
       grid.move ();
       for (var i=0;i<enemies.length;i++){
         enemies[i].move(timestamp);
       }
       doCollisions (timestamp);
-      moveFX (timestamp);
+      fx.move (timestamp);
       playerBullets.move (timestamp);
       enemyBullets.move ();
       draw(timestamp);
