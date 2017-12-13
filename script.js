@@ -184,6 +184,11 @@
     }
   }
 
+  var STATUS_ALIVE = 1;
+  var STATUS_DEAD = 2;
+  var STATUS_STARTING = 3;
+  var STATUS_GHOST = 4;
+
   function Player (){
     var char_speed = 8;
     this.size_x = 32;
@@ -191,19 +196,47 @@
 
     this.pos_x = SCREEN_X / 2 - this.size_x / 2;
     this.pos_y = SCREEN_Y * 0.30;
-    this.pos_z = ZS;
+    this.pos_z = ZS - start_z;
     
     this.sprite = new Sprite ("player", this.size_x, this.size_y);
     this.sprite.seq = [1,2];
     
-    var STATUS_ALIVE = 1;
-    var STATUS_DEAD = 2;
-    var STATUS_GHOST = 3;
+    this.status = STATUS_STARTING;
     
-    var timestamp=0;
+    this.statusTimestamp = 0;
     var animMs = 100;
+    var startingMs = 1000;
     
+    var start_z = 400;
+    
+    this.moveStarting = function (timestamp) {
+      var elapsed = timestamp - this.statusTimestamp;
+      if (elapsed < startingMs){         
+        var progress = elapsed / startingMs
+        this.pos_z = Math.round (ZS - ((1-progress) * start_z));
+      } else {
+        this.status = STATUS_ALIVE; // TODO:GHOST
+      }
+    }
+    this.reset = function (timestamp) {
+      //this.status = STATUS_ALIVE;  // TODO: STARTING
+      this.statusTimestamp = timestamp;
+      this.status = STATUS_STARTING;
+      this.pos_x = SCREEN_X / 2 - this.size_x / 2;
+      this.pos_y = SCREEN_Y * 0.30;
+      //this.pos_z = ZS;
+      this.pos_z = start_z;
+    }
+    this.kill = function (timestamp) {
+      this.status = STATUS_DEAD;
+      var player = this;
+      var ts = timestamp;
+      setTimeout (function () {player.reset(ts+2000);}, 2000);
+    }
     this.draw = function (ctx, ts) {
+      if (this.status == STATUS_DEAD) {
+        return;
+      }
       if (ts - this.sprite.paint_timestamp >= animMs){
         this.sprite.next(); 
       }
@@ -230,10 +263,12 @@
     
     this.setLocked = function (locked) { this.sprite.state = locked? 1 : 0; }
     this.draw = function (ctx, ts) {
-      var pos_x = player.pos_x;
-      var pos_y = player.pos_y;
-      
-      this.sprite.draw (ctx, pos_x, pos_y, this.pos_z, ts);
+      if (player.status == STATUS_ALIVE){
+        var pos_x = player.pos_x;
+        var pos_y = player.pos_y;
+
+        this.sprite.draw (ctx, pos_x, pos_y, this.pos_z, ts);
+      }
     }
   }
 
@@ -626,7 +661,7 @@
       }
     }
     
-    var movePlayer = function() {
+    var controlPlayer = function() {
       if (control.isLeftPressed ()) {
         player.moveLeft (- control.getXSpeed ());
         grid.rotateLeft ();
@@ -645,6 +680,19 @@
         sound.shot (0.5);
         playerBullets.fire ();
       }
+    }
+    
+    var movePlayer = function (timestamp) {
+      if (player.status == STATUS_ALIVE || player.status == STATUS_GHOST) {
+        controlPlayer ();
+      } else if (player.status == STATUS_STARTING) {
+        player.moveStarting (timestamp)
+      }
+    }
+    
+    var killPlayer = function (timestamp) {
+      fx.bigExplosion (player.pos_x+player.size_x/2,player.pos_y+player.size_y/2, player.pos_z-1, timestamp);
+      player.kill (timestamp);
     }
     
     // improved with http://jsfiddle.net/h5qba8v9/3/
@@ -700,12 +748,14 @@
     }
     
     var doCollisions = function (timestamp){
+      if (player.status != STATUS_ALIVE) { return; }
       for (var i=0; i < enemyBullets.bullets.length; i++){
         var bullet = enemyBullets.bullets[i];
         if (collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.speed_z,
             player.pos_x, player.pos_y, player.pos_z, player.size_x, player.size_y, 1)){
           if (collisionSprite (bullet.pos_x, bullet.pos_y, bullet.sprite, player.pos_x, player.pos_y, player.sprite)){
-            fx.bigExplosion (player.pos_x+player.size_x/2,player.pos_y+player.size_y/2, player.pos_z-1, timestamp)
+            killPlayer(timestamp);
+            return;
           }
         }
       }
@@ -741,7 +791,7 @@
     }
 
     var render = function (timestamp) {
-      movePlayer ();
+      movePlayer (timestamp);
       grid.move ();
       for (var i=0;i<enemies.length;i++){
         enemies[i].move(timestamp);
