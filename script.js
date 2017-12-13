@@ -76,16 +76,13 @@
     this.image = imgName;
     this.width = w;
     this.height = h;
-    this.canvas = null;
     this.seq = [0];
     this.state = 0;
-    this.paint_timestamp = 0;
     
     this.next = function () {
       this.state = (this.state + 1) % this.seq.length;    
     }
     this.draw = function(ctx, x, y, z, ts) {
-      this.paint_timestamp = ts;
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
       
@@ -95,7 +92,6 @@
       ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
     }
     this.drawCentered = function(ctx, x, y, z, ts) {
-      this.paint_timestamp = ts;
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
       
@@ -119,7 +115,7 @@
     this.rot_cos = 1;
     this.speed = 8;
     this.DIM = 25;
-    this.angle_speed = 0.004;
+    this.angle_speed = 0.005;
 
     for (var i = -this.DIM / 2; i < this.DIM / 2; i++) {
       for (var j = 0; j < this.DIM; j++) {
@@ -203,24 +199,44 @@
     
     this.status = STATUS_STARTING;
     
-    this.statusTimestamp = 0;
-    var animMs = 100;
+    this.status_timestamp = 0;
     var startingMs = 1000;
+    var animMs = 100;
+    var anim_timestamp = 0;
     
     var start_z = 400;
     
     this.moveStarting = function (timestamp) {
-      var elapsed = timestamp - this.statusTimestamp;
+      var elapsed = timestamp - this.status_timestamp;
       if (elapsed < startingMs){         
         var progress = elapsed / startingMs
         this.pos_z = Math.round (ZS - ((1-progress) * start_z));
       } else {
-        this.status = STATUS_ALIVE; // TODO:GHOST
+        this.ghost (timestamp);
       }
+    }
+    this.ghost = function (timestamp) {
+      console.log ("ghost: "+timestamp);
+      this.status = STATUS_GHOST; // TODO:GHOST
+      this.status_timestamp = timestamp;
+      this.sprite.seq = [0,1,0,2];
+      animMs = 50;
+      this.sprite.next ();
+      var ts = timestamp;
+      var player = this;
+      setTimeout (function () {player.alive(ts+1000);}, 1000);
+    }
+    this.alive = function (timestamp) {
+      console.log ("alive: "+timestamp);
+      this.status_timestamp = timestamp;
+      this.status = STATUS_ALIVE;
+      this.sprite.seq = [1,2];
+      this.sprite.next ();
+      animMs = 100;
     }
     this.reset = function (timestamp) {
       //this.status = STATUS_ALIVE;  // TODO: STARTING
-      this.statusTimestamp = timestamp;
+      this.status_timestamp = timestamp;
       this.status = STATUS_STARTING;
       this.pos_x = SCREEN_X / 2 - this.size_x / 2;
       this.pos_y = SCREEN_Y * 0.30;
@@ -237,8 +253,9 @@
       if (this.status == STATUS_DEAD) {
         return;
       }
-      if (ts - this.sprite.paint_timestamp >= animMs){
-        this.sprite.next(); 
+      if (ts - anim_timestamp >= animMs){
+        this.sprite.next();
+        anim_timestamp = ts;
       }
       this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
     }
@@ -263,7 +280,7 @@
     
     this.setLocked = function (locked) { this.sprite.state = locked? 1 : 0; }
     this.draw = function (ctx, ts) {
-      if (player.status == STATUS_ALIVE){
+      if (player.status == STATUS_ALIVE || player.status == STATUS_GHOST){
         var pos_x = player.pos_x;
         var pos_y = player.pos_y;
 
@@ -380,6 +397,7 @@
       ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);*/
       if (ts - timestamp >= animMs){
         this.sprite.next();
+        timestamp = ts;
       }
       this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
     }
@@ -686,7 +704,8 @@
       if (player.status == STATUS_ALIVE || player.status == STATUS_GHOST) {
         controlPlayer ();
       } else if (player.status == STATUS_STARTING) {
-        player.moveStarting (timestamp)
+        player.moveStarting (timestamp);
+        grid.undoRotation ();
       }
     }
     
