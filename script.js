@@ -3,13 +3,20 @@
 
   var ZS = 500;
   
-  
   function project(p) {
     var ret = [
       p[0] * ZS / p[2] + SCREEN_X / 2,
       p[1] * ZS / p[2] + SCREEN_Y / 2
     ];
     return ret;
+  }
+
+  function addToPaint (list, item){
+    var zOrder = 0;
+    while (zOrder < list.length && list[zOrder].pos_z>item.pos_z){
+      zOrder++;
+    }
+    list.splice (zOrder, 0, item);  // in-order insert
   }
 
   function ImageCache (){
@@ -113,7 +120,7 @@
     this.rot_ang = 0;
     this.rot_sin = 0;
     this.rot_cos = 1;
-    this.speed = 8;
+    this.speed = 10;
     this.DIM = 25;
     this.angle_speed = 0.005;
 
@@ -134,22 +141,23 @@
       ];      
     }
     
-    this.drawGrid = function (ctx, style){
+    this.drawGrid = function (ctx, style, player){
         ctx.strokeStyle = style;
         ctx.lineWidth = 2;
         ctx.beginPath();
+        var height = 80 * ((SCREEN_Y - player.pos_y)/SCREEN_Y);
         for (var i = 0; i < this.DIM; i++) {
           var sp1 = this.points[i * this.DIM + 1];
           var sp2 = this.points[(i + 1) * this.DIM - 1];
-          var p1 = project(this.rotate([sp1[0], sp1[1], sp1[2] - this.offset]));
-          var p2 = project(this.rotate([sp2[0], sp2[1], sp2[2] - this.offset]));
+          var p1 = project(this.rotate([sp1[0], sp1[1]+height, sp1[2] - this.offset]));
+          var p2 = project(this.rotate([sp2[0], sp2[1]+height, sp2[2] - this.offset]));
           ctx.moveTo(p1[0], p1[1]);
           ctx.lineTo(p2[0], p2[1]);
 
           sp1 = this.points[i];
           sp2 = this.points[(this.DIM - 1) * this.DIM + i];
-          var p1 = project(this.rotate([sp1[0], sp1[1], sp1[2] - this.offset]));
-          var p2 = project(this.rotate([sp2[0], sp2[1], sp2[2] - this.offset]));
+          var p1 = project(this.rotate([sp1[0], sp1[1]+height, sp1[2] - this.offset]));
+          var p2 = project(this.rotate([sp2[0], sp2[1]+height, sp2[2] - this.offset]));
 
           ctx.moveTo(p1[0], p1[1]);
           ctx.lineTo(p2[0], p2[1]);
@@ -182,7 +190,7 @@
 
   var STATUS_ALIVE = 1;
   var STATUS_DEAD = 2;
-  var STATUS_STARTING = 3;
+  var STATUS_INTRO = 3;
   var STATUS_GHOST = 4;
 
   function Player (){
@@ -192,62 +200,61 @@
 
     this.pos_x = SCREEN_X / 2 - this.size_x / 2;
     this.pos_y = SCREEN_Y * 0.30;
-    this.pos_z = ZS - start_z;
+    this.pos_z = ZS - intro_z;
     
     this.sprite = new Sprite ("player", this.size_x, this.size_y);
     this.sprite.seq = [1,2];
     
-    this.status = STATUS_STARTING;
+    this.status = STATUS_INTRO;
     
     this.status_timestamp = 0;
     var startingMs = 1000;
+    var deadMs = 2000;
     var animMs = 100;
     var anim_timestamp = 0;
     
-    var start_z = 400;
-    
-    this.moveStarting = function (timestamp) {
+    var intro_z = 400;
+    this.setStatus = function (status, timestamp) {
+      this.status = status;
+      this.status_timestamp = timestamp;
+    }
+    this.moveAuto = function (timestamp) {
       var elapsed = timestamp - this.status_timestamp;
-      if (elapsed < startingMs){         
-        var progress = elapsed / startingMs
-        this.pos_z = Math.round (ZS - ((1-progress) * start_z));
-      } else {
-        this.ghost (timestamp);
+      if (this.status == STATUS_INTRO) {
+        if (elapsed < startingMs){         
+          var progress = elapsed / startingMs
+          this.pos_z = Math.round (ZS - ((1-progress) * intro_z));
+        } else {
+          this.pos_z = ZS;
+          this.ghost (timestamp);
+        }
       }
     }
     this.ghost = function (timestamp) {
-      console.log ("ghost: "+timestamp);
-      this.status = STATUS_GHOST; // TODO:GHOST
-      this.status_timestamp = timestamp;
+      this.setStatus (STATUS_GHOST, timestamp);
       this.sprite.seq = [0,1,0,2];
       animMs = 50;
-      this.sprite.next ();
       var ts = timestamp;
       var player = this;
       setTimeout (function () {player.alive(ts+1000);}, 1000);
     }
     this.alive = function (timestamp) {
-      console.log ("alive: "+timestamp);
-      this.status_timestamp = timestamp;
-      this.status = STATUS_ALIVE;
+      this.setStatus (STATUS_ALIVE, timestamp);
       this.sprite.seq = [1,2];
-      this.sprite.next ();
       animMs = 100;
     }
     this.reset = function (timestamp) {
-      //this.status = STATUS_ALIVE;  // TODO: STARTING
-      this.status_timestamp = timestamp;
-      this.status = STATUS_STARTING;
-      this.pos_x = SCREEN_X / 2 - this.size_x / 2;
-      this.pos_y = SCREEN_Y * 0.30;
-      //this.pos_z = ZS;
-      this.pos_z = start_z;
+      this.setStatus (STATUS_INTRO, timestamp);
+      //this.pos_x = SCREEN_X / 2 - this.size_x / 2;
+      //this.pos_y = SCREEN_Y * 0.30;
+      this.pos_z = intro_z;
     }
     this.kill = function (timestamp) {
-      this.status = STATUS_DEAD;
+      this.setStatus (STATUS_DEAD, timestamp);
+      this.status_timestamp = timestamp;
       var player = this;
       var ts = timestamp;
-      setTimeout (function () {player.reset(ts+2000);}, 2000);
+      setTimeout (function () {player.reset(ts+deadMs);}, deadMs);
     }
     this.draw = function (ctx, ts) {
       if (this.status == STATUS_DEAD) {
@@ -341,11 +348,7 @@
     
     this.bullets = [];
     this.fire = function (x, y, z, speed_x, speed_y, speed_z) {
-      var zOrder = 0;
-      while (zOrder < this.bullets.length && this.bullets[zOrder].pos_z > z){
-        zOrder++;
-      }
-      this.bullets.splice (zOrder, 0, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y));  // in-order insert
+      addToPaint (this.bullets, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y));
     }
     
     this.move = function () {
@@ -371,53 +374,70 @@
     }
   }
 
-  function Enemy (x, y, z, bullets, player) {
-    this.size_x = 64;
-    this.size_y = 64;
-    this.pos_x = x;
-    this.pos_y = y;
-    this.pos_z = z;
-    this.hit = 0;
-    this.player = player;
+  function Enemies (bullets, player) {
+    this.enemies = [];  // reverse z-sorted for painting. Rebuilt for each frame.
     
-    var enemyBullets = bullets;
-    
-    var speed = 2;
-
-    this.sprite = new Sprite ("enemy", this.size_x, this.size_y);
-    this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
-
-    var timestamp=0;
-    var animMs = 100;
-    
-    this.draw = function (ctx, ts) { 
-/*      var msSinceHit = ts - this.hit;
-      var delay = 500;
-      ctx.fillStyle = msSinceHit < delay ? "rgb(255,"+(255*(1-msSinceHit/delay))+","+(255*(1-msSinceHit/delay))+")" : "red";
-      ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);*/
-      if (ts - timestamp >= animMs){
-        this.sprite.next();
-        timestamp = ts;
+    function LateralPatrol (px, py, z, size_x) { // x and y relative to viewport size
+      var periodMs = 12000;
+      this.positionAt = function (timestamp) {
+        var length = SCREEN_X - size_x;
+        var offset = ((px*SCREEN_X)/length/2);
+        var progress = ((timestamp + (offset*periodMs)) % periodMs)/periodMs;
+        if (progress < 0.5) { // rightbound (0, 0.5) => (0, length)
+          return [Math.round(length*progress*2), SCREEN_Y*py, z];
+        } else {  // leftbound (0.5, 1) => (length, 0)
+          return [Math.round(length * (1-((progress-0.5)*2))), SCREEN_Y*py, z];
+        }
       }
-      this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
     }
     
-    var moves = [[speed, 0, 0], [-speed, 0, 0]]
-    var curr_move = 0;
-    var last_shot = 0;
-    var time_to_fire = 3000;
-    var bullet_speed_z = 4;
-    
-    this.move = function (timestamp) {
-      this.pos_x += moves[curr_move][0];
-      this.pos_y += moves[curr_move][1];
-      this.pos_z += moves[curr_move][2];
-      if (this.pos_x <= 0){
-        curr_move = 0;
-      } else if (this.pos_x >= SCREEN_X-this.size_x){
-        curr_move = 1;
+    function Enemy (x, y, z, bullets, player) {
+      this.size_x = 64;
+      this.size_y = 64;
+      this.pos_x = x;
+      this.pos_y = y;
+      this.pos_z = z;
+      this.hit = 0;
+      this.player = player;
+
+      var enemyBullets = bullets;
+
+      this.path = new LateralPatrol (x, y, z, this.size_x);
+
+      this.sprite = new Sprite ("enemy", this.size_x, this.size_y);
+      this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
+
+      var timestamp=0;
+      var animMs = 100;
+
+      this.draw = function (ctx, ts) { 
+  /*      var msSinceHit = ts - this.hit;
+        var delay = 500;
+        ctx.fillStyle = msSinceHit < delay ? "rgb(255,"+(255*(1-msSinceHit/delay))+","+(255*(1-msSinceHit/delay))+")" : "red";
+        ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);*/
+        if (ts - timestamp >= animMs){
+          this.sprite.next();
+          timestamp = ts;
+        }
+        this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
       }
-      if (timestamp-last_shot > time_to_fire){
+
+      var last_shot = 0;
+      var time_to_fire = 3000;
+      var bullet_speed_z = 4;
+
+      this.move = function (timestamp) {
+        var position = this.path.positionAt (timestamp);
+        this.pos_x = position[0];
+        this.pos_y = position[1];
+        this.pos_z = position[2];
+        if (timestamp-last_shot > time_to_fire){
+          this.fireAtPlayer ();
+          last_shot = timestamp;
+        }
+      }
+
+      this.fireAtPlayer = function () {
         var source_x = this.pos_x+this.size_x/2 - enemyBullets.size_x/2;
         var source_y = this.pos_y+this.size_y/8 - enemyBullets.size_y/2;
         var target_x = player.pos_x + player.size_x/2 - enemyBullets.size_x/2;
@@ -430,10 +450,26 @@
         else if (bullet_speed_y < 0) { bullet_speed_y = Math.max (bullet_speed_y, - bullet_speed_z); }
 
         enemyBullets.fire (source_x, source_y, this.pos_z-1, bullet_speed_x, bullet_speed_y, bullet_speed_z);
-        last_shot = timestamp;
+      }
+    }
+    var wave = [
+      new Enemy (0, 0.1, 1600, bullets, player), 
+      new Enemy (0.5, 0.50, 1200, bullets, player), 
+      new Enemy (1,  0.80, 800, bullets, player)];
+
+    this.addToScreen = function (enemy){
+      addToPaint (this.enemies, enemy);
+    }
+
+    this.move = function (timestamp) {
+      this.enemies = [];
+      for (var i=0;i<wave.length;i++){
+        wave[i].move(timestamp);
+        this.addToScreen (wave[i]);
       }
     }
   }
+  
 
   function FX () {
     this.fx = [];
@@ -456,11 +492,7 @@
     }
     
     this.addFX = function (newFX){
-      var zOrder = 0;
-      while (zOrder < this.fx.length && this.fx[zOrder].pos_z>newFX.pos_z){
-        zOrder++;
-      }
-      this.fx.splice (zOrder, 0, newFX);  // in-order insert
+      addToPaint(this.fx, newFX);
     }
     this.smallExplosion = function (x, y, z, ts) {
       var newFX = new Effect (x, y, z, ts, 125);
@@ -581,11 +613,10 @@
     var hud = new Hud (player);
     var playerBullets = new PlayerBullets (player);
     var enemyBullets = new EnemyBullets (player);
-
+    var enemies = new Enemies (enemyBullets, player);
     var control = new Control ();
     var sound = new Sound ();
     var fx = new FX ();
-    var enemies = [];
 
     var imgSaturn = new Image();
     imgSaturn.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
@@ -626,7 +657,7 @@
         ctx.fillStyle = "rgb(0,0,0)";
         ctx.fillRect(0, 0, SCREEN_X, SCREEN_Y);
         levels[level].drawBackground (ctx);
-        grid.drawGrid (ctx, levels[level].gridColor);
+        grid.drawGrid (ctx, levels[level].gridColor, player);
         drawObjects (ctx, timestamp);
       }
     }
@@ -637,21 +668,24 @@
       var curr_enemy = 0;
       var curr_player = 0;
       var curr_fx = 0;
-      
+       
       var obj_player = [hud, player];
       
       var z = 10000; // bullet_max_depth
-      var z_limit = 100;
-      
+      var z_limit = 0;
+       
       while (true){
-        var z_bullet = curr_bullet < playerBullets.bullets.length ? playerBullets.bullets[curr_bullet][2]:0;
-        var z_enemy_bullet = curr_enemy_bullet < enemyBullets.bullets.length ? enemyBullets.bullets[curr_enemy_bullet].pos_z:0;
-        var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : 0;
-        var z_enemy = curr_enemy < enemies.length? enemies [curr_enemy].pos_z : 0;
-        var z_fx = curr_fx < fx.fx.length? fx.fx [curr_fx].pos_z : 0;
+        var z_bullet = curr_bullet < playerBullets.bullets.length ? playerBullets.bullets[curr_bullet][2]:z_limit;
+        var z_enemy_bullet = curr_enemy_bullet < enemyBullets.bullets.length ? enemyBullets.bullets[curr_enemy_bullet].pos_z:z_limit;
+        var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : z_limit;
+        var z_enemy = curr_enemy < enemies.enemies.length? enemies.enemies [curr_enemy].pos_z : z_limit;
+        var z_fx = curr_fx < fx.fx.length? fx.fx [curr_fx].pos_z : z_limit;
 
-        z = Math.max (z_fx, Math.max (z_bullet, Math.max (z_enemy_bullet, Math.max (z_player, z_enemy))));
-        if (z < z_limit){
+        z = z_limit; 
+        var list = [z_fx, z_bullet, z_enemy_bullet, z_player, z_enemy];
+        for (var i = 0; i<list.length; i++) { if (! isNaN (list[i])) { z = Math.max (list[i], z); }}
+
+        if (z <= z_limit){
           break;
         }
         if (z_bullet == z) {
@@ -671,7 +705,7 @@
           obj_player[curr_player++].draw (ctx, timestamp);
         }
         if (z_enemy == z) {
-          enemies[curr_enemy++].draw (ctx, timestamp);
+          enemies.enemies [curr_enemy++].draw (ctx, timestamp);
         }
         if (z_fx == z) {
           fx.fx[curr_fx++].draw (ctx, timestamp);
@@ -703,9 +737,9 @@
     var movePlayer = function (timestamp) {
       if (player.status == STATUS_ALIVE || player.status == STATUS_GHOST) {
         controlPlayer ();
-      } else if (player.status == STATUS_STARTING) {
-        player.moveStarting (timestamp);
-        grid.undoRotation ();
+      } else {
+        player.moveAuto (timestamp);
+        //grid.undoRotation ();
       }
     }
     
@@ -738,8 +772,6 @@
     }
 
     function collisionSprite (x1, y1, sprite1, x2, y2, sprite2) {
-      //alert ("collisionSprite: "+x1+", "+y1+" vs "+x2+","+y2);
-
       var overlap = overlapRect (x1, y1, x1 + sprite1.width, y1 + sprite1.height,
                                 x2, y2, x2 + sprite2.width, y2 + sprite2.height);
       if (overlap == null) {return false;}
@@ -780,8 +812,8 @@
       }
       for (var i=0; i< playerBullets.bullets.length; i++){
         var bullet = playerBullets.bullets[i];
-        for (var j=0; j<enemies.length; j++) {
-          var enemy = enemies[j];
+        for (var j=0; j<enemies.enemies.length; j++) {
+          var enemy = enemies.enemies[j];
           if (bullet != null) {
             if (collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
@@ -798,8 +830,8 @@
       }
       var enemy = null;
       var locked = false;
-      for (var i=0; i<enemies.length; i++) {
-        enemy = enemies[i];
+      for (var i=0; i<enemies.enemies.length; i++) {
+        enemy = enemies.enemies[i];
         if (collisionBox2D (player.pos_x, player.pos_y, player.size_x, player.size_y,
                            enemy.pos_x, enemy.pos_y, enemy.size_x, enemy.size_y)){
           locked = true;
@@ -812,9 +844,7 @@
     var render = function (timestamp) {
       movePlayer (timestamp);
       grid.move ();
-      for (var i=0;i<enemies.length;i++){
-        enemies[i].move(timestamp);
-      }
+      enemies.move (timestamp);
       doCollisions (timestamp);
       fx.move (timestamp);
       playerBullets.move (timestamp);
@@ -822,7 +852,6 @@
       draw(timestamp);
       window.requestAnimationFrame(render);
     }
-    
     
     var setSize = function () {
       var ctx = document.getElementById("canvas").getContext("2d");
@@ -846,7 +875,6 @@
     this.start = function () {
       control.enable ();
       setSize ();
-      enemies = [new Enemy (0, SCREEN_Y * 0.1, 1600, enemyBullets, player), new Enemy (SCREEN_X / 2, SCREEN_Y * 0.50, 1200, enemyBullets, player), new Enemy (SCREEN_X, SCREEN_Y * 0.80, 800, enemyBullets, player)];
       //window.addEventListener('resize', setSize, false);
       //window.addEventListener('orientationchange', setSize, false);
       //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
@@ -857,8 +885,6 @@
   }
 
 
-  function start() {
+  (function start() {
     new Game().start ();
-  }
-
-  start();
+  })()
