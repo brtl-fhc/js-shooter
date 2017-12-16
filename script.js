@@ -85,27 +85,30 @@
     this.height = h;
     this.seq = [0];
     this.state = 0;
+    this.animMs = 0;
+    var anim_timestamp = 0;
     
     this.next = function () {
       this.state = (this.state + 1) % this.seq.length;    
     }
-    this.draw = function(ctx, x, y, z, ts) {
+    this.drawSprite = function (ctx, p1, p4, ts) {
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
-      
-      var p1 = project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
-      var p4 = project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
-
+      if (ts - anim_timestamp >= this.animMs){
+        this.next();
+        anim_timestamp = ts;
+      }
       ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
     }
+    this.draw = function(ctx, x, y, z, ts) {
+      var p1 = project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
+      var p4 = project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
+      this.drawSprite (ctx, p1, p4, ts);
+    }
     this.drawCentered = function(ctx, x, y, z, ts) {
-      var offsetX = this.seq[this.state]*this.width;
-      var offsetY = 0;
-      
       var p1 = project([x - SCREEN_X / 2 - this.width/2, y - SCREEN_Y / 2 - this.height/2, z]);
       var p4 = project([x - SCREEN_X / 2  + this.width/2, y - SCREEN_Y / 2 + this.height/2, z]);
-
-      ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+      this.drawSprite (ctx, p1, p4, ts);
     }
     this.getMaskPixel = function (x, y) {
       var offsetX = this.seq[this.state]*this.width;
@@ -203,15 +206,13 @@
     this.pos_z = ZS - intro_z;
     
     this.sprite = new Sprite ("player", this.size_x, this.size_y);
-    this.sprite.seq = [1,2];
-    
+    this.sprite.seq = [1,1,2,2];
+    this.sprite.animMs = 50;
     this.status = STATUS_INTRO;
     
     this.status_timestamp = 0;
     var startingMs = 1000;
     var deadMs = 2000;
-    var animMs = 100;
-    var anim_timestamp = 0;
     
     var intro_z = 400;
     this.setStatus = function (status, timestamp) {
@@ -233,20 +234,16 @@
     this.ghost = function (timestamp) {
       this.setStatus (STATUS_GHOST, timestamp);
       this.sprite.seq = [0,1,0,2];
-      animMs = 50;
       var ts = timestamp;
       var player = this;
       setTimeout (function () {player.alive(ts+1000);}, 1000);
     }
     this.alive = function (timestamp) {
       this.setStatus (STATUS_ALIVE, timestamp);
-      this.sprite.seq = [1,2];
-      animMs = 100;
+      this.sprite.seq = [1,1,2,2];
     }
     this.reset = function (timestamp) {
       this.setStatus (STATUS_INTRO, timestamp);
-      //this.pos_x = SCREEN_X / 2 - this.size_x / 2;
-      //this.pos_y = SCREEN_Y * 0.30;
       this.pos_z = intro_z;
     }
     this.kill = function (timestamp) {
@@ -259,10 +256,6 @@
     this.draw = function (ctx, ts) {
       if (this.status == STATUS_DEAD) {
         return;
-      }
-      if (ts - anim_timestamp >= animMs){
-        this.sprite.next();
-        anim_timestamp = ts;
       }
       this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
     }
@@ -283,9 +276,9 @@
     var size_y = player.size_y;
     
     this.sprite = new Sprite ("hud", size_x, size_y);
-    this.sprite.seq = [0,1];
+    this.sprite.seq = [0];
     
-    this.setLocked = function (locked) { this.sprite.state = locked? 1 : 0; }
+    this.setLocked = function (locked) { this.sprite.seq = locked? [1] : [0]; }
     this.draw = function (ctx, ts) {
       if (player.status == STATUS_ALIVE || player.status == STATUS_GHOST){
         var pos_x = player.pos_x;
@@ -310,7 +303,6 @@
       var brightness = parseInt(255 * (bullet_max_depth - bullet[2]) / bullet_max_depth, 10);
       ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
       ctx.fillRect(p1[0], p1[1], this.bullet_size, this.bullet_size);
-      //imgSprite.draw(ctx,bullet[0], bullet[1], bullet[2])
     }
     this.move = function move () {
       for (var i = 0; i < this.bullets.length; i++) {
@@ -406,19 +398,14 @@
 
       this.sprite = new Sprite ("enemy", this.size_x, this.size_y);
       this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
-
+      this.sprite.animMs = 100;
       var timestamp=0;
-      var animMs = 100;
 
       this.draw = function (ctx, ts) { 
   /*      var msSinceHit = ts - this.hit;
         var delay = 500;
         ctx.fillStyle = msSinceHit < delay ? "rgb(255,"+(255*(1-msSinceHit/delay))+","+(255*(1-msSinceHit/delay))+")" : "red";
         ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);*/
-        if (ts - timestamp >= animMs){
-          this.sprite.next();
-          timestamp = ts;
-        }
         this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
       }
 
@@ -481,11 +468,7 @@
 
       this.sprite = null;
 
-      this.update = function (now){
-        var elapsed = now - timestamp;
-        this.sprite.state = elapsed <= durationMs ? Math.floor(elapsed / durationMs * this.sprite.seq.length)  : -1;
-      }
-      this.isFinished = function () { return (this.sprite.state == -1); }
+      this.isFinished = function (ts) { return (ts-timestamp > durationMs); }
       this.draw = function (ctx, ts){
         this.sprite.drawCentered(ctx, this.pos_x, this.pos_y, this.pos_z, ts);
       }
@@ -495,22 +478,23 @@
       addToPaint(this.fx, newFX);
     }
     this.smallExplosion = function (x, y, z, ts) {
-      var newFX = new Effect (x, y, z, ts, 125);
+      var newFX = new Effect (x, y, z, ts, 100);
       newFX.sprite = new Sprite ("explosion", 128, 128);
-      newFX.sprite.seq = [2, 1, 0];
+      newFX.sprite.seq = [2, 1, 1, 1, 0];
+      newFX.sprite.animMs = 100 / newFX.sprite.seq.length;
       this.addFX (newFX);
     }
     this.bigExplosion = function (x, y, z, ts){
-      var newFX = new Effect (x, y, z, ts, 500);
+      var newFX = new Effect (x, y, z, ts, 1000);
       newFX.sprite = new Sprite ("explosion", 128, 128);
-      newFX.sprite.seq = [2, 3, 4, 5, 6, 7, 8, 9, 0];
+      newFX.sprite.seq = [2,3,4,5,6,7,8,9,0,0];
+      newFX.sprite.animMs = 1000 / newFX.sprite.seq.length;
       this.addFX (newFX);
     }
     
     this.move = function (ts) {
       for (var i =0 ; i<this.fx.length; i++){
-        this.fx[i].update(ts);
-        if (this.fx[i].isFinished ()){
+        if (this.fx[i].isFinished (ts)){
           this.fx.splice(i,1);
         }
       }
