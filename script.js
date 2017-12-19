@@ -88,14 +88,11 @@
     this.animMs = 0;
     var anim_timestamp = 0;
     
-    this.next = function () {
-      this.state = (this.state + 1) % this.seq.length;    
-    }
     this.drawSprite = function (ctx, p1, p4, ts) {
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
       if (ts - anim_timestamp >= this.animMs){
-        this.next();
+        this.state = (this.state + 1) % this.seq.length;    
         anim_timestamp = ts;
       }
       ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
@@ -383,18 +380,30 @@
       }
     }
     
-    function Enemy (x, y, z, bullets, player) {
+    function ParabolicPatrol (py, z, start_ts) {
+      var duration = 10000;
+      var length_x = SCREEN_X+100;
+      this.positionAt = function (timestamp){
+        var elapsed = timestamp - start_ts;
+        if (elapsed > duration) {return null;}
+        var progress = elapsed/duration;
+        var x = -50 + (length_x*progress);
+        return [x, SCREEN_Y*py, z - 0.005*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
+      }
+    }
+    
+    function Enemy (bullets, player) {
       this.size_x = 64;
       this.size_y = 64;
-      this.pos_x = x;
-      this.pos_y = y;
-      this.pos_z = z;
+      this.pos_x = 0;
+      this.pos_y = 0;
+      this.pos_z = 0;
       this.hit = 0;
       this.player = player;
 
       var enemyBullets = bullets;
 
-      this.path = new LateralPatrol (x, y, z, this.size_x);
+      this.path = null;//new LateralPatrol (x, y, z, this.size_x);
 
       this.sprite = new Sprite ("enemy", this.size_x, this.size_y);
       this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
@@ -415,13 +424,15 @@
 
       this.move = function (timestamp) {
         var position = this.path.positionAt (timestamp);
+        if (position == null) {return false;}
         this.pos_x = position[0];
         this.pos_y = position[1];
         this.pos_z = position[2];
-        if (timestamp-last_shot > time_to_fire){
+        if (this.pos_z > player.pos_z && timestamp-last_shot > time_to_fire){
           this.fireAtPlayer ();
           last_shot = timestamp;
         }
+        return true;
       }
 
       this.fireAtPlayer = function () {
@@ -439,21 +450,26 @@
         enemyBullets.fire (source_x, source_y, this.pos_z-1, bullet_speed_x, bullet_speed_y, bullet_speed_z);
       }
     }
-    var wave = [
-      new Enemy (0, 0.1, 1600, bullets, player), 
-      new Enemy (0.5, 0.50, 1200, bullets, player), 
-      new Enemy (1,  0.80, 800, bullets, player)];
+    var wave = [];
 
-    this.addToScreen = function (enemy){
-      addToPaint (this.enemies, enemy);
+    this.createWave = function (timestamp) {
+      for (var i=0; i<4; i++) {
+        var enemy = new Enemy (bullets,player);
+        enemy.path = new ParabolicPatrol (0.5, 1400, timestamp+(i*1000)); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        wave.push (enemy);//[new Enemy (0, 0.1, 1600, bullets, player), new Enemy (0.5, 0.50, 1200, bullets, player), new Enemy (1,  0.80, 800, bullets, player)];        
+      }
     }
-
     this.move = function (timestamp) {
+      if (wave.length==0) {
+        this.createWave (timestamp);
+      }
       this.enemies = [];
       for (var i=0;i<wave.length;i++){
-        wave[i].move(timestamp);
-        this.addToScreen (wave[i]);
+        if (wave[i].move(timestamp)) {
+          addToPaint (this.enemies, wave[i]);
+        }
       }
+      if (this.enemies.length == 0) { wave = []; } // Wave finished
     }
   }
   
@@ -481,14 +497,14 @@
       var newFX = new Effect (x, y, z, ts, 100);
       newFX.sprite = new Sprite ("explosion", 128, 128);
       newFX.sprite.seq = [2, 1, 1, 1, 0];
-      newFX.sprite.animMs = 100 / newFX.sprite.seq.length;
+      newFX.sprite.animMs = 100 / (newFX.sprite.seq.length-1);
       this.addFX (newFX);
     }
     this.bigExplosion = function (x, y, z, ts){
       var newFX = new Effect (x, y, z, ts, 1000);
       newFX.sprite = new Sprite ("explosion", 128, 128);
-      newFX.sprite.seq = [2,3,4,5,6,7,8,9,0,0];
-      newFX.sprite.animMs = 1000 / newFX.sprite.seq.length;
+      newFX.sprite.seq = [2,2,3,4,5,6,7,8,9];
+      newFX.sprite.animMs = 1000 / (newFX.sprite.seq.length-1);
       this.addFX (newFX);
     }
     
