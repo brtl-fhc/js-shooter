@@ -197,6 +197,7 @@
     var char_speed = 8;
     this.size_x = 32;
     this.size_y = 16;
+    this.size_z = 16;
 
     this.pos_x = SCREEN_X / 2 - this.size_x / 2;
     this.pos_y = SCREEN_Y * 0.30;
@@ -320,7 +321,8 @@
   function EnemyBullets () {
     this.size_x = 16;
     this.size_y = 16;
-    var EnemyBullet = function (x, y, z, speed_x, speed_y, speed_z, size_x, size_y) {
+    this.size_z = 16;
+    var EnemyBullet = function (x, y, z, speed_x, speed_y, speed_z, size_x, size_y, size_z) {
       this.pos_x = x;
       this.pos_y = y;
       this.pos_z = z;
@@ -330,6 +332,7 @@
 
       this.size_x = size_x;
       this.size_y = size_y;
+      this.size_z = size_z;
       this.sprite = new Sprite ("enemy_bullet", this.size_x, this.size_y);
 
       this.draw = function (ctx, ts) { this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts); }
@@ -337,7 +340,7 @@
     
     this.bullets = [];
     this.fire = function (x, y, z, speed_x, speed_y, speed_z) {
-      addToPaint (this.bullets, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y));
+      addToPaint (this.bullets, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y, this.size_z));
     }
     
     this.move = function () {
@@ -395,6 +398,8 @@
     function Enemy (bullets, player) {
       this.size_x = 64;
       this.size_y = 64;
+      this.size_z = 16;
+
       this.pos_x = 0;
       this.pos_y = 0;
       this.pos_z = 0;
@@ -802,8 +807,8 @@
       if (player.status != STATUS_ALIVE) { return; }
       for (var i=0; i < enemyBullets.bullets.length; i++){
         var bullet = enemyBullets.bullets[i];
-        if (collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.speed_z,
-            player.pos_x, player.pos_y, player.pos_z, player.size_x, player.size_y, 1)){
+        if (collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.size_z,//bullet.speed_z,
+            player.pos_x, player.pos_y, player.pos_z, player.size_x, player.size_y, player.size_z)){
           if (collisionSprite (bullet.pos_x, bullet.pos_y, bullet.sprite, player.pos_x, player.pos_y, player.sprite)){
             killPlayer(timestamp);
             return;
@@ -815,8 +820,8 @@
         for (var j=0; j<enemies.enemies.length; j++) {
           var enemy = enemies.enemies[j];
           if (bullet != null) {
-            if (collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_speed,
-                          enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, 1)){
+            if (collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_size,//bullet_speed,
+                          enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, enemy.size_z)){
               if (collisionSprite (bullet[0], bullet[1], playerBullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
                 sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
                 playerBullets.bullets[i] = null;
@@ -845,10 +850,10 @@
       movePlayer (timestamp);
       grid.move ();
       enemies.move (timestamp);
-      doCollisions (timestamp);
-      fx.move (timestamp);
       playerBullets.move (timestamp);
       enemyBullets.move ();
+      doCollisions (timestamp);
+      fx.move (timestamp);
       draw(timestamp);
       window.requestAnimationFrame(render);
     }
