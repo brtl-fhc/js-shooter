@@ -29,7 +29,8 @@
       ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon(3).png?1512920112975", true],
       ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463", false],
       ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
-      ["enemy", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
+      ["enemy_tron", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
+      ["enemy_fly", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Ffly.png?1513691921972", true],
       ["enemy_bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy_bullet.png?1512727629879", true],
       ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577", false],
     ]
@@ -391,7 +392,7 @@
         if (elapsed > duration) {return null;}
         var progress = elapsed/duration;
         var x = -50 + (length_x*progress);
-        return [x, SCREEN_Y*py, z - 0.005*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
+        return [x, SCREEN_Y*py, z - 0.004*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
       }
     }
     
@@ -410,8 +411,8 @@
 
       this.path = null;//new LateralPatrol (x, y, z, this.size_x);
 
-      this.sprite = new Sprite ("enemy", this.size_x, this.size_y);
-      this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
+      this.sprite = new Sprite ("enemy_fly", this.size_x, this.size_y);
+      //this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
       this.sprite.animMs = 100;
       var timestamp=0;
 
@@ -460,7 +461,7 @@
     this.createWave = function (timestamp) {
       for (var i=0; i<4; i++) {
         var enemy = new Enemy (bullets,player);
-        enemy.path = new ParabolicPatrol (0.5, 1400, timestamp+(i*1000)); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        enemy.path = new ParabolicPatrol (0.5, 1000, timestamp+(i*1000)); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
         wave.push (enemy);//[new Enemy (0, 0.1, 1600, bullets, player), new Enemy (0.5, 0.50, 1200, bullets, player), new Enemy (1,  0.80, 800, bullets, player)];        
       }
     }
@@ -680,7 +681,7 @@
       var z_limit = 0;
        
       while (true){
-        var z_bullet = curr_bullet < playerBullets.bullets.length ? playerBullets.bullets[curr_bullet][2]:z_limit;
+        var z_bullet = ((curr_bullet < playerBullets.bullets.length) && playerBullets.bullets[curr_bullet]!=null) ? playerBullets.bullets[curr_bullet][2]:z_limit;
         var z_enemy_bullet = curr_enemy_bullet < enemyBullets.bullets.length ? enemyBullets.bullets[curr_enemy_bullet].pos_z:z_limit;
         var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : z_limit;
         var z_enemy = curr_enemy < enemies.enemies.length? enemies.enemies [curr_enemy].pos_z : z_limit;
