@@ -189,11 +189,6 @@
     }
   }
 
-  var STATUS_ALIVE = 1;
-  var STATUS_DEAD = 2;
-  var STATUS_INTRO = 3;
-  var STATUS_GHOST = 4;
-
   function Player (){
     var char_speed = 8;
     this.size_x = 32;
@@ -207,7 +202,8 @@
     this.sprite = new Sprite ("player", this.size_x, this.size_y);
     this.sprite.seq = [1,1,2,2];
     this.sprite.animMs = 50;
-    this.status = STATUS_INTRO;
+    this.statuses = {STATUS_ALIVE: 1, STATUS_DEAD: 2, STATUS_INTRO: 3, STATUS_GHOST: 4};
+    this.status = this.statuses.STATUS_INTRO;
     
     this.status_timestamp = 0;
     var startingMs = 1000;
@@ -220,7 +216,7 @@
     }
     this.moveAuto = function (timestamp) {
       var elapsed = timestamp - this.status_timestamp;
-      if (this.status == STATUS_INTRO) {
+      if (this.status == this.statuses.STATUS_INTRO) {
         if (elapsed < startingMs){         
           var progress = elapsed / startingMs
           this.pos_z = Math.round (ZS - ((1-progress) * intro_z));
@@ -231,29 +227,29 @@
       }
     }
     this.ghost = function (timestamp) {
-      this.setStatus (STATUS_GHOST, timestamp);
+      this.setStatus (this.statuses.STATUS_GHOST, timestamp);
       this.sprite.seq = [0,1,0,2];
       var ts = timestamp;
       var player = this;
       setTimeout (function () {player.alive(ts+1000);}, 1000);
     }
     this.alive = function (timestamp) {
-      this.setStatus (STATUS_ALIVE, timestamp);
+      this.setStatus (this.statuses.STATUS_ALIVE, timestamp);
       this.sprite.seq = [1,1,2,2];
     }
     this.reset = function (timestamp) {
-      this.setStatus (STATUS_INTRO, timestamp);
+      this.setStatus (this.statuses.STATUS_INTRO, timestamp);
       this.pos_z = intro_z;
     }
     this.kill = function (timestamp) {
-      this.setStatus (STATUS_DEAD, timestamp);
+      this.setStatus (this.statuses.STATUS_DEAD, timestamp);
       this.status_timestamp = timestamp;
       var player = this;
       var ts = timestamp;
       setTimeout (function () {player.reset(ts+deadMs);}, deadMs);
     }
     this.draw = function (ctx, ts) {
-      if (this.status == STATUS_DEAD) {
+      if (this.status == this.statuses.STATUS_DEAD) {
         return;
       }
       this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
@@ -279,7 +275,7 @@
     
     this.setLocked = function (locked) { this.sprite.seq = locked? [1] : [0]; }
     this.draw = function (ctx, ts) {
-      if (player.status == STATUS_ALIVE || player.status == STATUS_GHOST){
+      if (player.status == player.statuses.STATUS_ALIVE || player.status == player.statuses.STATUS_GHOST){
         var pos_x = player.pos_x;
         var pos_y = player.pos_y;
 
@@ -385,13 +381,13 @@
     }
     
     function ParabolicPatrol (py, z, start_ts) {
-      var duration = 10000;
+      var duration = 8000;
       var length_x = SCREEN_X+100;
       this.positionAt = function (timestamp){
         var elapsed = timestamp - start_ts;
         if (elapsed > duration) {return null;}
         var progress = elapsed/duration;
-        var x = -50 + (length_x*progress);
+        var x = -50+(length_x * progress);
         return [x, SCREEN_Y*py, z - 0.004*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
       }
     }
@@ -461,7 +457,7 @@
     this.createWave = function (timestamp) {
       for (var i=0; i<4; i++) {
         var enemy = new Enemy (bullets,player);
-        enemy.path = new ParabolicPatrol (0.5, 1000, timestamp+(i*1000)); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        enemy.path = new ParabolicPatrol (0.5, 1000, timestamp+(i*500)); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
         wave.push (enemy);//[new Enemy (0, 0.1, 1600, bullets, player), new Enemy (0.5, 0.50, 1200, bullets, player), new Enemy (1,  0.80, 800, bullets, player)];        
       }
     }
@@ -477,8 +473,7 @@
       }
       if (this.enemies.length == 0) { wave = []; } // Wave finished
     }
-  }
-  
+  }  
 
   function FX () {
     this.fx = [];
@@ -741,7 +736,7 @@
     }
     
     var movePlayer = function (timestamp) {
-      if (player.status == STATUS_ALIVE || player.status == STATUS_GHOST) {
+      if (player.status == player.statuses.STATUS_ALIVE || player.status == player.statuses.STATUS_GHOST) {
         controlPlayer ();
       } else {
         player.moveAuto (timestamp);
@@ -805,7 +800,7 @@
     }
     
     var doCollisions = function (timestamp){
-      if (player.status != STATUS_ALIVE) { return; }
+      if (player.status != player.statuses.STATUS_ALIVE) { return; }
       for (var i=0; i < enemyBullets.bullets.length; i++){
         var bullet = enemyBullets.bullets[i];
         if (collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.size_z,//bullet.speed_z,
@@ -887,9 +882,7 @@
       window.addEventListener('orientationchange', setSize, false);
       window.requestAnimationFrame(render);  
     }
-    
   }
-
 
   (function start() {
     new Game().start ();
