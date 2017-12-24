@@ -26,7 +26,9 @@
     var masks = {};
     
     var assets = [
-      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon(3).png?1512920112975", true],
+      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fnave%20amiga(1).png?1513962232531"//"https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon(3).png?1512920112975"
+         /*"https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fnave%20amiga%20boceto%20Jd.png?1513779599145"*/
+         /*"https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fship.png?1513946880480"*/, true],
       ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463", false],
       ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
       ["enemy_tron", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
@@ -101,6 +103,11 @@
     this.draw = function(ctx, x, y, z, ts) {
       var p1 = project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
       var p4 = project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
+      this.drawSprite (ctx, p1, p4, ts);
+    }
+    this.drawScaled = function(ctx, x, y, z, size_x, size_y, ts) {
+      var p1 = project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
+      var p4 = project([x - SCREEN_X / 2  + size_x, y + size_y - SCREEN_Y / 2 , z]);
       this.drawSprite (ctx, p1, p4, ts);
     }
     this.drawCentered = function(ctx, x, y, z, ts) {
@@ -191,7 +198,7 @@
 
   function Player (){
     var char_speed = 8;
-    this.size_x = 32;
+    this.size_x = 48;
     this.size_y = 16;
     this.size_z = 16;
 
@@ -200,7 +207,7 @@
     this.pos_z = ZS - intro_z;
     
     this.sprite = new Sprite ("player", this.size_x, this.size_y);
-    this.sprite.seq = [1,1,2,2];
+    this.sprite.seq = [1];//[1,1,2,2];
     this.sprite.animMs = 50;
     this.statuses = {STATUS_ALIVE: 1, STATUS_DEAD: 2, STATUS_INTRO: 3, STATUS_GHOST: 4};
     this.status = this.statuses.STATUS_INTRO;
@@ -228,14 +235,14 @@
     }
     this.ghost = function (timestamp) {
       this.setStatus (this.statuses.STATUS_GHOST, timestamp);
-      this.sprite.seq = [0,1,0,2];
+      this.sprite.seq = [0,1];//[0,1,0,2];
       var ts = timestamp;
       var player = this;
       setTimeout (function () {player.alive(ts+1000);}, 1000);
     }
     this.alive = function (timestamp) {
       this.setStatus (this.statuses.STATUS_ALIVE, timestamp);
-      this.sprite.seq = [1,1,2,2];
+      this.sprite.seq = [1];//[1,1,2,2];
     }
     this.reset = function (timestamp) {
       this.setStatus (this.statuses.STATUS_INTRO, timestamp);
@@ -267,8 +274,8 @@
   function Hud (player) {
     this.pos_z = 1000;
     
-    var size_x = player.size_x;
-    var size_y = player.size_y;
+    var size_x = 32;
+    var size_y = 16;
     
     this.sprite = new Sprite ("hud", size_x, size_y);
     this.sprite.seq = [0];
@@ -279,7 +286,7 @@
         var pos_x = player.pos_x;
         var pos_y = player.pos_y;
 
-        this.sprite.draw (ctx, pos_x, pos_y, this.pos_z, ts);
+        this.sprite.drawScaled (ctx, pos_x, pos_y, this.pos_z, player.size_x, player.size_y, ts);
       }
     }
   }
@@ -339,7 +346,6 @@
     this.fire = function (x, y, z, speed_x, speed_y, speed_z) {
       addToPaint (this.bullets, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y, this.size_z));
     }
-    
     this.move = function () {
       var z_limit = 50;
       var z = null;
@@ -380,14 +386,14 @@
       }
     }
     
-    function ParabolicPatrol (py, z, start_ts) {
+    function ParabolicPatrol (py, z, start_ts, reverse) {
       var duration = 8000;
       var length_x = SCREEN_X+100;
       this.positionAt = function (timestamp){
         var elapsed = timestamp - start_ts;
         if (elapsed > duration) {return null;}
         var progress = elapsed/duration;
-        var x = -50+(length_x * progress);
+        var x = reverse? SCREEN_X+50-(length_x * progress) : -50+(length_x * progress);
         return [x, SCREEN_Y*py, z - 0.004*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
       }
     }
@@ -424,6 +430,10 @@
       var time_to_fire = 3000;
       var bullet_speed_z = 4;
 
+      this.statuses = { ALIVE: 1, DEAD: 2 };
+      this.status = this.statuses.ALIVE;
+      this.hp = 10;
+      this.hit = function (){this.hp--; if (this.hp<=0) {this.status = this.statuses.DEAD;}};
       this.move = function (timestamp) {
         var position = this.path.positionAt (timestamp);
         if (position == null) {return false;}
@@ -453,11 +463,11 @@
       }
     }
     var wave = [];
-
     this.createWave = function (timestamp) {
+      console.log ("createWave: "+ timestamp);
       for (var i=0; i<4; i++) {
         var enemy = new Enemy (bullets,player);
-        enemy.path = new ParabolicPatrol (0.5, 1000, timestamp+(i*500)); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        enemy.path = new ParabolicPatrol (Math.random ()*0.8, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
         wave.push (enemy);//[new Enemy (0, 0.1, 1600, bullets, player), new Enemy (0.5, 0.50, 1200, bullets, player), new Enemy (1,  0.80, 800, bullets, player)];        
       }
     }
@@ -467,7 +477,7 @@
       }
       this.enemies = [];
       for (var i=0;i<wave.length;i++){
-        if (wave[i].move(timestamp)) {
+        if (wave[i].status == wave[i].statuses.ALIVE && wave[i].move(timestamp)) {
           addToPaint (this.enemies, wave[i]);
         }
       }
@@ -815,14 +825,18 @@
         var bullet = playerBullets.bullets[i];
         for (var j=0; j<enemies.enemies.length; j++) {
           var enemy = enemies.enemies[j];
-          if (bullet != null) {
+          if (bullet != null && enemy.status == enemy.statuses.ALIVE) {
             if (collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_size,//bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, enemy.size_z)){
               if (collisionSprite (bullet[0], bullet[1], playerBullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
                 sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
                 playerBullets.bullets[i] = null;
-                enemy.hit = timestamp;
-                fx.smallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
+                enemy.hit (timestamp);
+                if (enemy.status == enemy.statuses.ALIVE) {
+                  fx.smallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
+                } else {
+                  fx.bigExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
+                }
                 score.hit ();
               }
             }
@@ -833,7 +847,8 @@
       var locked = false;
       for (var i=0; i<enemies.enemies.length; i++) {
         enemy = enemies.enemies[i];
-        if (collisionBox2D (player.pos_x, player.pos_y, player.size_x, player.size_y,
+        if (enemy.status == enemy.statuses.ALIVE && 
+            collisionBox2D (player.pos_x, player.pos_y, player.size_x, player.size_y,
                            enemy.pos_x, enemy.pos_y, enemy.size_x, enemy.size_y)){
           locked = true;
           break;
