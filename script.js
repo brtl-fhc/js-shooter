@@ -386,7 +386,7 @@
       }
     }
     
-    function ParabolicPatrol (py, z, start_ts, reverse) {
+    function ParabolicPatrol (py, dy, z, start_ts, reverse) {
       var duration = 8000;
       var length_x = SCREEN_X+100;
       this.positionAt = function (timestamp){
@@ -394,7 +394,8 @@
         if (elapsed > duration) {return null;}
         var progress = elapsed/duration;
         var x = reverse? SCREEN_X+50-(length_x * progress) : -50+(length_x * progress);
-        return [x, SCREEN_Y*py, z - 0.004*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
+        var y = SCREEN_Y*(py+(progress*dy));
+        return [x, y, z - 0.004*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
       }
     }
     
@@ -464,10 +465,10 @@
     }
     var wave = [];
     this.createWave = function (timestamp) {
-      console.log ("createWave: "+ timestamp);
+      var dy = Math.random ()-0.5;
       for (var i=0; i<4; i++) {
         var enemy = new Enemy (bullets,player);
-        enemy.path = new ParabolicPatrol (Math.random ()*0.8, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        enemy.path = new ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
         wave.push (enemy);//[new Enemy (0, 0.1, 1600, bullets, player), new Enemy (0.5, 0.50, 1200, bullets, player), new Enemy (1,  0.80, 800, bullets, player)];        
       }
     }
@@ -511,11 +512,11 @@
       newFX.sprite.animMs = 100 / (newFX.sprite.seq.length-1);
       this.addFX (newFX);
     }
-    this.bigExplosion = function (x, y, z, ts){
-      var newFX = new Effect (x, y, z, ts, 1000);
+    this.bigExplosion = function (x, y, z, ts, durationMs){
+      var newFX = new Effect (x, y, z, ts, durationMs);
       newFX.sprite = new Sprite ("explosion", 128, 128);
       newFX.sprite.seq = [2,2,3,4,5,6,7,8,9];
-      newFX.sprite.animMs = 1000 / (newFX.sprite.seq.length-1);
+      newFX.sprite.animMs = durationMs / (newFX.sprite.seq.length-1);
       this.addFX (newFX);
     }
     
@@ -755,7 +756,7 @@
     }
     
     var killPlayer = function (timestamp) {
-      fx.bigExplosion (player.pos_x+player.size_x/2,player.pos_y+player.size_y/2, player.pos_z-1, timestamp);
+      fx.bigExplosion (player.pos_x+player.size_x/2,player.pos_y+player.size_y/2, player.pos_z-1, timestamp, 1000);
       player.kill (timestamp);
     }
     
@@ -835,7 +836,7 @@
                 if (enemy.status == enemy.statuses.ALIVE) {
                   fx.smallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
                 } else {
-                  fx.bigExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
+                  fx.bigExplosion (enemy.pos_x+(enemy.size_x/2), enemy.pos_y+(enemy.size_y/2), bullet[2], timestamp, 500);
                 }
                 score.hit ();
               }
