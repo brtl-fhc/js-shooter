@@ -291,7 +291,7 @@
     }
   }
 
-  function PlayerBullets (player) {
+  function PlayerBullets () {
     var bullet_max_depth = 10000;
     this.bullet_speed = 50;
     this.bullet_size = 3;
@@ -316,7 +316,7 @@
         this.bullets.shift();
       }
     }
-    this.fire = function () {
+    this.fire = function (player) {
       this.bullets.push([player.pos_x-1, player.pos_y + player.size_y / 2, player.pos_z]);
       this.bullets.push([player.pos_x + player.size_x, player.pos_y + player.size_y / 2, player.pos_z]);
     }
@@ -369,7 +369,7 @@
     }
   }
 
-  function Enemies (bullets, player) {
+  function Enemies () {
     this.enemies = [];  // reverse z-sorted for painting. Rebuilt for each frame.
     
     function LateralPatrol (px, py, z, size_x) { // x and y relative to viewport size
@@ -399,7 +399,7 @@
       }
     }
     
-    function Enemy (bullets, player) {
+    function Enemy () {
       this.size_x = 64;
       this.size_y = 64;
       this.size_z = 16;
@@ -408,9 +408,6 @@
       this.pos_y = 0;
       this.pos_z = 0;
       this.hit = 0;
-      this.player = player;
-
-      var enemyBullets = bullets;
 
       this.path = null;//new LateralPatrol (x, y, z, this.size_x);
 
@@ -435,20 +432,20 @@
       this.status = this.statuses.ALIVE;
       this.hp = 10;
       this.hit = function (){this.hp--; if (this.hp<=0) {this.status = this.statuses.DEAD;}};
-      this.move = function (timestamp) {
+      this.move = function (player, enemyBullets, timestamp) {
         var position = this.path.positionAt (timestamp);
         if (position == null) {return false;}
         this.pos_x = position[0];
         this.pos_y = position[1];
         this.pos_z = position[2];
         if (this.pos_z > player.pos_z && timestamp-last_shot > time_to_fire){
-          this.fireAtPlayer ();
+          this.fireAtPlayer (player, enemyBullets);
           last_shot = timestamp;
         }
         return true;
       }
 
-      this.fireAtPlayer = function () {
+      this.fireAtPlayer = function (player, enemyBullets) {
         var source_x = this.pos_x+this.size_x/2 - enemyBullets.size_x/2;
         var source_y = this.pos_y+this.size_y/8 - enemyBullets.size_y/2;
         var target_x = player.pos_x + player.size_x/2 - enemyBullets.size_x/2;
@@ -467,18 +464,18 @@
     this.createWave = function (timestamp) {
       var dy = Math.random ()-0.5;
       for (var i=0; i<4; i++) {
-        var enemy = new Enemy (bullets,player);
+        var enemy = new Enemy ();
         enemy.path = new ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
         wave.push (enemy);//[new Enemy (0, 0.1, 1600, bullets, player), new Enemy (0.5, 0.50, 1200, bullets, player), new Enemy (1,  0.80, 800, bullets, player)];        
       }
     }
-    this.move = function (timestamp) {
+    this.move = function (player, enemyBullets, timestamp) {
       if (wave.length==0) {
         this.createWave (timestamp);
       }
       this.enemies = [];
       for (var i=0;i<wave.length;i++){
-        if (wave[i].status == wave[i].statuses.ALIVE && wave[i].move(timestamp)) {
+        if (wave[i].status == wave[i].statuses.ALIVE && wave[i].move (player, enemyBullets, timestamp)) {
           addToPaint (this.enemies, wave[i]);
         }
       }
@@ -623,9 +620,9 @@
     var grid = new Grid ();
     var player = new Player ();
     var hud = new Hud (player);
-    var playerBullets = new PlayerBullets (player);
-    var enemyBullets = new EnemyBullets (player);
-    var enemies = new Enemies (enemyBullets, player);
+    var playerBullets = new PlayerBullets ();
+    var enemyBullets = new EnemyBullets ();
+    var enemies = new Enemies ();
     var control = new Control ();
     var sound = new Sound ();
     var fx = new FX ();
@@ -742,7 +739,7 @@
       }
       if (control.isFirePressed ()) {
         sound.shot (0.5);
-        playerBullets.fire ();
+        playerBullets.fire (player);
       }
     }
     
@@ -796,17 +793,12 @@
       var base1_y = overlap[0][1]-y1;
       var base2_x = overlap[0][0]-x2;
       var base2_y = overlap[0][1]-y2;
-      // 5 points (corners + center) enough for 3x3 bullets. Use a 9-point one for larger objects. 
-      if (sprite1.getMaskPixel(base1_x, base1_y) != 0 
-          && sprite2.getMaskPixel(base2_x, base2_y) != 0){ return true; }
-      if (sprite1.getMaskPixel(base1_x + overlap_w-1, base1_y) != 0 
-          && sprite2.getMaskPixel(base2_x + overlap_w-1, base2_y) != 0){ return true; }
-      if (sprite1.getMaskPixel(base1_x + half_w, base1_y + half_h) != 0 
-          && sprite2.getMaskPixel(base2_x + half_w, base2_y + half_h) != 0){ return true; }
-      if (sprite1.getMaskPixel(base1_x, base1_y + overlap_h - 1) != 0 
-          && sprite2.getMaskPixel(base2_x, base2_y + overlap_h -1) != 0){ return true; }
-      if (sprite1.getMaskPixel(base1_x + overlap_w-1, base1_y + overlap_h - 1) != 0 
-          && sprite2.getMaskPixel(base2_x + overlap_w-1, base2_y + overlap_h -1) != 0){ return true; }
+      // 5 points (corners + center) enough for 3x3 bullets. Use a 9-point grid for larger objects?
+      var checkpoints = [[0,0],[overlap_w-1, 0], [half_w, half_h], [0, overlap_h-1], [overlap_w-1, overlap_h-1]];
+      for (var i = 0; i < checkpoints.length; i++) {
+        if (sprite1.getMaskPixel(base1_x + checkpoints[i][0], base1_y + checkpoints[i][1]) != 0 
+            && sprite2.getMaskPixel(base2_x + checkpoints[i][0], base2_y + checkpoints[i][1]) != 0){ return true; }
+      }      
       return false;
     }
     
@@ -861,7 +853,7 @@
     var render = function (timestamp) {
       movePlayer (timestamp);
       grid.move ();
-      enemies.move (timestamp);
+      enemies.move (player, enemyBullets, timestamp);
       playerBullets.move (timestamp);
       enemyBullets.move ();
       doCollisions (timestamp);
