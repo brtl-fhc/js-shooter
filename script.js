@@ -3,22 +3,65 @@
 
   var ZS = 500;
   
-  function project(p) {
-    var ret = [
-      p[0] * ZS / p[2] + SCREEN_X / 2,
-      p[1] * ZS / p[2] + SCREEN_Y / 2
-    ];
-    return ret;
-  }
+  var Utils = {
+    project: function (p) {
+      var ret = [
+        p[0] * ZS / p[2] + SCREEN_X / 2,
+        p[1] * ZS / p[2] + SCREEN_Y / 2
+      ];
+      return ret;
+    },
+    addToPaint: function addToPaint (list, item){
+      var zOrder = 0;
+      while (zOrder < list.length && list[zOrder].pos_z>item.pos_z){
+        zOrder++;
+      }
+      list.splice (zOrder, 0, item);  // in-order insert
+    },
+    collisionBox3D: function collisionBox3D (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
+        // improved with http://jsfiddle.net/h5qba8v9/3/
+      return  (x1 < x2 + w2 && x2 < x1 + w1 &&
+        y1 < y2 + h2 && y2 < h1 + y1 &&
+        z1 < z2 + d2 && z2 < z1 + d1);
+    },
+    collisionBox2D: function collisionBox2D (x1, y1, w1, h1, x2, y2, w2, h2) {
+      return  (x1 < x2 + w2 && x2 < x1 + w1 &&
+        y1 < y2 + h2 && y2 < h1 + y1);
+    },
+    // Intersection diagonal: [[x1,y1][x4,y4]]
+    overlapRect: function overlapRect (r1x1, r1y1, r1x2, r1y2, r2x1, r2y1, r2x2, r2y2) {
+      var overlap = [[Math.max(r1x1, r2x1), Math.max(r1y1, r2y1)],
+             [Math.min(r1x2, r2x2), Math.min(r1y2, r2y2)]];
+      if (overlap[0][0]<overlap[1][0] && overlap[0][1]<overlap[1][1]){
+        return overlap;
+      } else {
+        return null;
+      }
+    },
+    collisionSprite: function collisionSprite (x1, y1, sprite1, x2, y2, sprite2) {
+      var overlap = this.overlapRect (x1, y1, x1 + sprite1.width, y1 + sprite1.height,
+                                x2, y2, x2 + sprite2.width, y2 + sprite2.height);
+      if (overlap == null) {return false;}
+      var overlap_w = overlap[1][0]-overlap[0][0];
+      var overlap_h = overlap[1][1]-overlap[0][1];
 
-  function addToPaint (list, item){
-    var zOrder = 0;
-    while (zOrder < list.length && list[zOrder].pos_z>item.pos_z){
-      zOrder++;
-    }
-    list.splice (zOrder, 0, item);  // in-order insert
+      var half_w = Math.floor (overlap_w/2);
+      var half_h = Math.floor (overlap_h/2);
+      var base1_x = overlap[0][0]-x1;
+      var base1_y = overlap[0][1]-y1;
+      var base2_x = overlap[0][0]-x2;
+      var base2_y = overlap[0][1]-y2;
+      // 5 points (corners + center) enough for 3x3 bullets. Use a 9-point grid for larger objects?
+      var checkpoints = [[0,0],[overlap_w-1, 0], [half_w, half_h], [0, overlap_h-1], [overlap_w-1, overlap_h-1]];
+      for (var i = 0; i < checkpoints.length; i++) {
+        if (sprite1.getMaskPixel(base1_x + checkpoints[i][0], base1_y + checkpoints[i][1]) != 0 
+            && sprite2.getMaskPixel(base2_x + checkpoints[i][0], base2_y + checkpoints[i][1]) != 0){ return true; }
+      }      
+      return false;
+    },
+    imageCache: new ImageCache ()
   }
-
+  
   function ImageCache (){
     this.images = {};
     var loaded = [];
@@ -80,8 +123,6 @@
     }
   }
   
-  var imageCache = new ImageCache ();
-
   function Sprite (imgName, w, h){
     this.image = imgName;
     this.width = w;
@@ -98,27 +139,27 @@
         this.state = (this.state + 1) % this.seq.length;    
         anim_timestamp = ts;
       }
-      ctx.drawImage(imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+      ctx.drawImage(Utils.imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
     }
     this.draw = function(ctx, x, y, z, ts) {
-      var p1 = project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
-      var p4 = project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
+      var p1 = Utils.project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
+      var p4 = Utils.project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
       this.drawSprite (ctx, p1, p4, ts);
     }
     this.drawScaled = function(ctx, x, y, z, size_x, size_y, ts) {
-      var p1 = project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
-      var p4 = project([x - SCREEN_X / 2  + size_x, y + size_y - SCREEN_Y / 2 , z]);
+      var p1 = Utils.project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
+      var p4 = Utils.project([x - SCREEN_X / 2  + size_x, y + size_y - SCREEN_Y / 2 , z]);
       this.drawSprite (ctx, p1, p4, ts);
     }
     this.drawCentered = function(ctx, x, y, z, ts) {
-      var p1 = project([x - SCREEN_X / 2 - this.width/2, y - SCREEN_Y / 2 - this.height/2, z]);
-      var p4 = project([x - SCREEN_X / 2  + this.width/2, y - SCREEN_Y / 2 + this.height/2, z]);
+      var p1 = Utils.project([x - SCREEN_X / 2 - this.width/2, y - SCREEN_Y / 2 - this.height/2, z]);
+      var p4 = Utils.project([x - SCREEN_X / 2  + this.width/2, y - SCREEN_Y / 2 + this.height/2, z]);
       this.drawSprite (ctx, p1, p4, ts);
     }
     this.getMaskPixel = function (x, y) {
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
-      return imageCache.getMaskPixel (this.image, x, y);
+      return Utils.imageCache.getMaskPixel (this.image, x, y);
     }
   }
 
@@ -157,15 +198,15 @@
         for (var i = 0; i < this.DIM; i++) {
           var sp1 = this.points[i * this.DIM + 1];
           var sp2 = this.points[(i + 1) * this.DIM - 1];
-          var p1 = project(this.rotate([sp1[0], sp1[1]+height, sp1[2] - this.offset]));
-          var p2 = project(this.rotate([sp2[0], sp2[1]+height, sp2[2] - this.offset]));
+          var p1 = Utils.project(this.rotate([sp1[0], sp1[1]+height, sp1[2] - this.offset]));
+          var p2 = Utils.project(this.rotate([sp2[0], sp2[1]+height, sp2[2] - this.offset]));
           ctx.moveTo(p1[0], p1[1]);
           ctx.lineTo(p2[0], p2[1]);
 
           sp1 = this.points[i];
           sp2 = this.points[(this.DIM - 1) * this.DIM + i];
-          var p1 = project(this.rotate([sp1[0], sp1[1]+height, sp1[2] - this.offset]));
-          var p2 = project(this.rotate([sp2[0], sp2[1]+height, sp2[2] - this.offset]));
+          var p1 = Utils.project(this.rotate([sp1[0], sp1[1]+height, sp1[2] - this.offset]));
+          var p2 = Utils.project(this.rotate([sp2[0], sp2[1]+height, sp2[2] - this.offset]));
 
           ctx.moveTo(p1[0], p1[1]);
           ctx.lineTo(p2[0], p2[1]);
@@ -301,7 +342,7 @@
     
     this.draw = function draw (ctx, i) {
       var bullet = this.bullets[i];
-      var p1 = project([bullet[0] - SCREEN_X / 2, bullet[1] - SCREEN_Y / 2, bullet[2]]);
+      var p1 = Utils.project([bullet[0] - SCREEN_X / 2, bullet[1] - SCREEN_Y / 2, bullet[2]]);
       var brightness = parseInt(255 * (bullet_max_depth - bullet[2]) / bullet_max_depth, 10);
       ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
       ctx.fillRect(p1[0], p1[1], this.bullet_size, this.bullet_size);
@@ -317,8 +358,9 @@
       }
     }
     this.fire = function (player) {
-      this.bullets.push([player.pos_x-1, player.pos_y + player.size_y / 2, player.pos_z]);
-      this.bullets.push([player.pos_x + player.size_x, player.pos_y + player.size_y / 2, player.pos_z]);
+      this.bullets.push([player.pos_x + player.size_x / 2, player.pos_y + player.size_y / 2, player.pos_z])
+      /*this.bullets.push([player.pos_x-1, player.pos_y + player.size_y / 2, player.pos_z]);
+      this.bullets.push([player.pos_x + player.size_x, player.pos_y + player.size_y / 2, player.pos_z]);*/
     }
   }
   
@@ -344,7 +386,7 @@
     
     this.bullets = [];
     this.fire = function (x, y, z, speed_x, speed_y, speed_z) {
-      addToPaint (this.bullets, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y, this.size_z));
+      Utils.addToPaint (this.bullets, new EnemyBullet (x, y, z, speed_x, speed_y, speed_z, this.size_x, this.size_y, this.size_z));
     }
     this.move = function () {
       var z_limit = 50;
@@ -428,13 +470,19 @@
       var time_to_fire = 3000;
       var bullet_speed_z = 4;
 
-      this.statuses = { ALIVE: 1, DEAD: 2 };
+      this.statuses = { ALIVE: 1, DEAD: 2, GONE: 3 };
       this.status = this.statuses.ALIVE;
       this.hp = 10;
-      this.hit = function (){this.hp--; if (this.hp<=0) {this.status = this.statuses.DEAD;}};
+      this.hit = function (){
+        this.hp--; 
+        if (this.hp<=0) {
+          this.status = this.statuses.DEAD;
+          this.onKill ();
+        }
+      };
       this.move = function (player, enemyBullets, timestamp) {
         var position = this.path.positionAt (timestamp);
-        if (position == null) {return false;}
+        if (position == null) { this.status = this.statuses.GONE; return false;}
         this.pos_x = position[0];
         this.pos_y = position[1];
         this.pos_z = position[2];
@@ -444,7 +492,7 @@
         }
         return true;
       }
-
+      this.onKill = function () { /* Overload */ };
       this.fireAtPlayer = function (player, enemyBullets) {
         var source_x = this.pos_x+this.size_x/2 - enemyBullets.size_x/2;
         var source_y = this.pos_y+this.size_y/8 - enemyBullets.size_y/2;
@@ -466,7 +514,7 @@
       for (var i=0; i<4; i++) {
         var enemy = new Enemy ();
         enemy.path = new ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
-        wave.push (enemy);//[new Enemy (0, 0.1, 1600, bullets, player), new Enemy (0.5, 0.50, 1200, bullets, player), new Enemy (1,  0.80, 800, bullets, player)];        
+        wave.push (enemy);        
       }
     }
     this.move = function (player, enemyBullets, timestamp) {
@@ -476,10 +524,10 @@
       this.enemies = [];
       for (var i=0;i<wave.length;i++){
         if (wave[i].status == wave[i].statuses.ALIVE && wave[i].move (player, enemyBullets, timestamp)) {
-          addToPaint (this.enemies, wave[i]);
+          Utils.addToPaint (this.enemies, wave[i]);
         }
       }
-      if (this.enemies.length == 0) { wave = []; } // Wave finished
+      if (this.enemies.length == 0) { wave = []; } // Wave finished. TODO: rework into Wave class with callbacks.
     }
   }  
 
@@ -500,7 +548,7 @@
     }
     
     this.addFX = function (newFX){
-      addToPaint(this.fx, newFX);
+      Utils.addToPaint(this.fx, newFX);
     }
     this.smallExplosion = function (x, y, z, ts) {
       var newFX = new Effect (x, y, z, ts, 100);
@@ -616,6 +664,25 @@
     this.hit = function (vol) { play (audio_hit, vol); }
   }
 
+  function Levels () {
+    var imgSaturn = new Image();
+    imgSaturn.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
+    var imgSun = new Image ();
+    imgSun.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F9103296900_0d383feabf_z.jpg?1511356896867";
+    var imgEclipse = new Image();
+    imgEclipse.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F36326775510_eda3cf9402_z.jpg?1511358509011";
+
+    this.levels = [
+      {drawBackground: function (ctx){ ctx.drawImage(imgSaturn, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2); }, gridColor: "limegreen",
+       run: function (enemies) {
+       }
+      },
+      {drawBackground: function (ctx){ ctx.drawImage(imgEclipse, 0, 434/2, 640, 434/2, 60, 0, SCREEN_X, 434/2); }, gridColor: "violet"},
+      {drawBackground: function (ctx){ ctx.drawImage(imgSun, 0, 320, 640, 320, 0, -100, SCREEN_X, 320); }, gridColor: "orange"}
+    ];
+    this.level = 0;
+  }
+
   function Game () {
     var grid = new Grid ();
     var player = new Player ();
@@ -626,37 +693,18 @@
     var control = new Control ();
     var sound = new Sound ();
     var fx = new FX ();
-
-    var imgSaturn = new Image();
-    imgSaturn.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fsaturn.jpg?1510568809912";
-    
-    var imgSun = new Image ();
-    imgSun.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F9103296900_0d383feabf_z.jpg?1511356896867";
-    
-    var imgEclipse = new Image();
-    imgEclipse.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F36326775510_eda3cf9402_z.jpg?1511358509011";
-
-    var levels = [
-      {drawBackground: function (ctx){ ctx.drawImage(imgSaturn, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2); }, gridColor: "limegreen"},
-      {drawBackground: function (ctx){ ctx.drawImage(imgEclipse, 0, 434/2, 640, 434/2, 60, 0, SCREEN_X, 434/2); }, gridColor: "violet"},
-      {drawBackground: function (ctx){ ctx.drawImage(imgSun, 0, 320, 640, 320, 0, -100, SCREEN_X, 320); }, gridColor: "orange"}
-    ];
-    var level = 0;
+    var levels = new Levels ();
 
     var score = {
       current: 0,
       hit: function () {
         var hitsToAdvance = 250;
-        
         this.current++;
         if (this.current==hitsToAdvance){
-          this.advance ();
+          levels.level = (levels.level+1) % levels.levels.length;
+          this.current =  0;        
         }
       },
-      advance: function () {
-        level = (level+1) % levels.length;
-        this.current =  0;
-      }
     }
     
     var draw = function (timestamp) {
@@ -665,8 +713,8 @@
         var ctx = canvas.getContext("2d");
         ctx.fillStyle = "rgb(0,0,0)";
         ctx.fillRect(0, 0, SCREEN_X, SCREEN_Y);
-        levels[level].drawBackground (ctx);
-        grid.drawGrid (ctx, levels[level].gridColor, player);
+        levels.levels[levels.level].drawBackground (ctx);
+        grid.drawGrid (ctx, levels.levels[levels.level].gridColor, player);
         drawObjects (ctx, timestamp);
       }
     }
@@ -754,61 +802,17 @@
     
     var killPlayer = function (timestamp) {
       fx.bigExplosion (player.pos_x+player.size_x/2,player.pos_y+player.size_y/2, player.pos_z-1, timestamp, 1000);
+      sound.hit (0.5);
       player.kill (timestamp);
-    }
-    
-    // improved with http://jsfiddle.net/h5qba8v9/3/
-    function collisionBox3D (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
-      return  (x1 < x2 + w2 && x2 < x1 + w1 &&
-        y1 < y2 + h2 && y2 < h1 + y1 &&
-        z1 < z2 + d2 && z2 < z1 + d1);
-    }
-    
-    function collisionBox2D (x1, y1, w1, h1, x2, y2, w2, h2) {
-      return  (x1 < x2 + w2 && x2 < x1 + w1 &&
-        y1 < y2 + h2 && y2 < h1 + y1);
-    }
-
-    // Intersection diagonal: [[x1,y1][x4,y4]]
-    function overlapRect (r1x1, r1y1, r1x2, r1y2, r2x1, r2y1, r2x2, r2y2) {
-      var overlap = [[Math.max(r1x1, r2x1), Math.max(r1y1, r2y1)],
-             [Math.min(r1x2, r2x2), Math.min(r1y2, r2y2)]];
-      if (overlap[0][0]<overlap[1][0] && overlap[0][1]<overlap[1][1]){
-        return overlap;
-      } else {
-        return null;
-      }
-    }
-
-    function collisionSprite (x1, y1, sprite1, x2, y2, sprite2) {
-      var overlap = overlapRect (x1, y1, x1 + sprite1.width, y1 + sprite1.height,
-                                x2, y2, x2 + sprite2.width, y2 + sprite2.height);
-      if (overlap == null) {return false;}
-      var overlap_w = overlap[1][0]-overlap[0][0];
-      var overlap_h = overlap[1][1]-overlap[0][1];
-
-      var half_w = Math.floor (overlap_w/2);
-      var half_h = Math.floor (overlap_h/2);
-      var base1_x = overlap[0][0]-x1;
-      var base1_y = overlap[0][1]-y1;
-      var base2_x = overlap[0][0]-x2;
-      var base2_y = overlap[0][1]-y2;
-      // 5 points (corners + center) enough for 3x3 bullets. Use a 9-point grid for larger objects?
-      var checkpoints = [[0,0],[overlap_w-1, 0], [half_w, half_h], [0, overlap_h-1], [overlap_w-1, overlap_h-1]];
-      for (var i = 0; i < checkpoints.length; i++) {
-        if (sprite1.getMaskPixel(base1_x + checkpoints[i][0], base1_y + checkpoints[i][1]) != 0 
-            && sprite2.getMaskPixel(base2_x + checkpoints[i][0], base2_y + checkpoints[i][1]) != 0){ return true; }
-      }      
-      return false;
     }
     
     var doCollisions = function (timestamp){
       if (player.status != player.statuses.STATUS_ALIVE) { return; }
       for (var i=0; i < enemyBullets.bullets.length; i++){
         var bullet = enemyBullets.bullets[i];
-        if (collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.size_z,//bullet.speed_z,
+        if (Utils.collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.size_z,//bullet.speed_z,
             player.pos_x, player.pos_y, player.pos_z, player.size_x, player.size_y, player.size_z)){
-          if (collisionSprite (bullet.pos_x, bullet.pos_y, bullet.sprite, player.pos_x, player.pos_y, player.sprite)){
+          if (Utils.collisionSprite (bullet.pos_x, bullet.pos_y, bullet.sprite, player.pos_x, player.pos_y, player.sprite)){
             killPlayer(timestamp);
             return;
           }
@@ -819,15 +823,15 @@
         for (var j=0; j<enemies.enemies.length; j++) {
           var enemy = enemies.enemies[j];
           if (bullet != null && enemy.status == enemy.statuses.ALIVE) {
-            if (collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_size,//bullet_speed,
+            if (Utils.collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_size,//bullet_speed,
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, enemy.size_z)){
-              if (collisionSprite (bullet[0], bullet[1], playerBullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
-                sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
+              if (Utils.collisionSprite (bullet[0], bullet[1], playerBullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
                 playerBullets.bullets[i] = null;
                 enemy.hit (timestamp);
                 if (enemy.status == enemy.statuses.ALIVE) {
                   fx.smallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
                 } else {
+                  sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
                   fx.bigExplosion (enemy.pos_x+(enemy.size_x/2), enemy.pos_y+(enemy.size_y/2), bullet[2], timestamp, 500);
                 }
                 score.hit ();
@@ -841,7 +845,7 @@
       for (var i=0; i<enemies.enemies.length; i++) {
         enemy = enemies.enemies[i];
         if (enemy.status == enemy.statuses.ALIVE && 
-            collisionBox2D (player.pos_x, player.pos_y, player.size_x, player.size_y,
+            Utils.collisionBox2D (player.pos_x, player.pos_y, player.size_x, player.size_y,
                            enemy.pos_x, enemy.pos_y, enemy.size_x, enemy.size_y)){
           locked = true;
           break;
