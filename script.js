@@ -440,7 +440,6 @@
         return [x, y, z - 0.004*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
       }
     }
-    
     function Enemy () {
       this.size_x = 64;
       this.size_y = 64;
@@ -508,26 +507,50 @@
         enemyBullets.fire (source_x, source_y, this.pos_z-1, bullet_speed_x, bullet_speed_y, bullet_speed_z);
       }
     }
-    var wave = [];
+    
+    function Wave (timestamp) {
+      var wave = [];
+      this.add = function (enemy) {
+        wave.push (enemy);
+      }
+      this.finished = false;
+      this.move = function (player, enemies, enemyBullets, timestamp) {
+        this.finished = true;
+        for (var i=0;i<wave.length;i++){
+          if (wave[i].status == wave[i].statuses.ALIVE && wave[i].move (player, enemyBullets, timestamp)) {
+            Utils.addToPaint (enemies.enemies, wave[i]);
+            this.finished = false;
+          }
+        }        
+      }
+      this.onFinish = function (timestamp) { /* overload */ };
+    }
+    var waves = [];
+    
     this.createWave = function (timestamp) {
       var dy = Math.random ()-0.5;
+      var wave = new Wave (timestamp);
       for (var i=0; i<4; i++) {
         var enemy = new Enemy ();
         enemy.path = new ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
-        wave.push (enemy);        
+        wave.add (enemy);        
       }
+      return wave;
     }
     this.move = function (player, enemyBullets, timestamp) {
-      if (wave.length==0) {
-        this.createWave (timestamp);
-      }
       this.enemies = [];
-      for (var i=0;i<wave.length;i++){
-        if (wave[i].status == wave[i].statuses.ALIVE && wave[i].move (player, enemyBullets, timestamp)) {
-          Utils.addToPaint (this.enemies, wave[i]);
+      for (var i=0;i<waves.length;i++){
+        waves[i].move (player, this, enemyBullets, timestamp);
+        if (waves[i].finished) {
+          waves.splice (i,1);
+          waves.onFinish (timestamp);
         }
       }
-      if (this.enemies.length == 0) { wave = []; } // Wave finished. TODO: rework into Wave class with callbacks.
+    }
+    this.startLevel = function (level, timestamp) {
+      waves.push (this.createWave (timestamp));
+      var that = this;
+      waves.onFinish = function (ts) {waves.push (that.createWave (ts));};
     }
   }  
 
@@ -671,16 +694,13 @@
     imgSun.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F9103296900_0d383feabf_z.jpg?1511356896867";
     var imgEclipse = new Image();
     imgEclipse.src = "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2F36326775510_eda3cf9402_z.jpg?1511358509011";
-
+    
     this.levels = [
-      {drawBackground: function (ctx){ ctx.drawImage(imgSaturn, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2); }, gridColor: "limegreen",
-       run: function (enemies) {
-       }
-      },
+      {drawBackground: function (ctx){ ctx.drawImage(imgSaturn, 0, 376 / 2, 640, 376 / 2, -60, 0, SCREEN_X, 376 / 2); }, gridColor: "limegreen"},
       {drawBackground: function (ctx){ ctx.drawImage(imgEclipse, 0, 434/2, 640, 434/2, 60, 0, SCREEN_X, 434/2); }, gridColor: "violet"},
       {drawBackground: function (ctx){ ctx.drawImage(imgSun, 0, 320, 640, 320, 0, -100, SCREEN_X, 320); }, gridColor: "orange"}
     ];
-    this.level = 0;
+    this.level = null;
   }
 
   function Game () {
@@ -697,14 +717,21 @@
 
     var score = {
       current: 0,
-      hit: function () {
+      hit: function (timestamp) {
         var hitsToAdvance = 250;
         this.current++;
         if (this.current==hitsToAdvance){
-          levels.level = (levels.level+1) % levels.levels.length;
+          startLevel (timestamp, (levels.level+1) % levels.levels.length);
           this.current =  0;        
         }
       },
+    }
+
+    var startLevel = function (timestamp, level) {
+      if (!level) { level = 0; };
+      levels.level = level;
+      enemies.startLevel (0, timestamp);
+      window.requestAnimationFrame(render);
     }
     
     var draw = function (timestamp) {
@@ -834,7 +861,7 @@
                   sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
                   fx.bigExplosion (enemy.pos_x+(enemy.size_x/2), enemy.pos_y+(enemy.size_y/2), bullet[2], timestamp, 500);
                 }
-                score.hit ();
+                score.hit (timestamp);
               }
             }
           }          
@@ -885,6 +912,7 @@
       ctx.canvas.width = SCREEN_X
       ctx.canvas.height = SCREEN_Y;
     }
+    
     this.start = function () {
       control.enable ();
       setSize ();
@@ -892,7 +920,7 @@
       //window.addEventListener('orientationchange', setSize, false);
       //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
       window.addEventListener('orientationchange', setSize, false);
-      window.requestAnimationFrame(render);  
+      window.requestAnimationFrame(startLevel);
     }
   }
 
