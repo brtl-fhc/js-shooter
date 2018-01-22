@@ -59,6 +59,7 @@
       }      
       return false;
     },
+    distance: function distance (x1, y1, x2, y2) { return Math.sqrt (((x2-x1)*(x2-x1))+((y2-y1)*(y2-y1))) },
     imageCache: new ImageCache ()
   }
   
@@ -69,14 +70,13 @@
     var masks = {};
     
     var assets = [
-      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fnave%20amiga(1).png?1513962232531"//"https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fneon(3).png?1512920112975"
-         /*"https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fnave%20amiga%20boceto%20Jd.png?1513779599145"*/
-         /*"https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fship.png?1513946880480"*/, true],
+      ["player", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fnave%20amiga(1).png?1513962232531", true],
       ["hud", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fhud.png?1512578906463", false],
       ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
       ["enemy_tron", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
       ["enemy_fly", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Ffly.png?1513691921972", true],
       ["enemy_bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy_bullet.png?1512727629879", true],
+      ["boss", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fboss-01(3).png?1516476725558", true],
       ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577", false],
     ]
     
@@ -273,6 +273,7 @@
           this.ghost (timestamp);
         }
       }
+      this.gunHeatDown ();
     }
     this.ghost = function (timestamp) {
       this.setStatus (this.statuses.STATUS_GHOST, timestamp);
@@ -310,7 +311,26 @@
     this.moveRight = function (speed) { this.pos_x = Math.min(SCREEN_X - this.size_x, this.pos_x + calcSpeed(speed)); }
     this.moveUp = function (speed) { this.pos_y = Math.max(0, this.pos_y - calcSpeed(speed)); }
     this.moveDown = function (speed) { this.pos_y = Math.min(SCREEN_Y - this.size_y, this.pos_y + calcSpeed(speed)); }
-  }  
+    
+    this.gunHeat = 0;
+    var gunHeatUpDelta = 0.01;
+    var gunHeatDownDelta = 0.01;
+    var gunCoolThreshold = 0.75;
+    var gunOverheated = false;
+    this.isGunOverheated = function () { return gunOverheated; }
+    this.gunHeatUp = function () { 
+      this.gunHeat = Math.min (1, this.gunHeat + gunHeatUpDelta);
+      gunOverheated = (this.gunHeat == 1);
+      if (gunOverheated) { console.log ("OVERHEAT!"); }
+    }
+    this.gunHeatDown = function () {
+      this.gunHeat = Math.max (0, this.gunHeat - (gunOverheated? (gunHeatDownDelta/2) : gunHeatDownDelta));
+      if (gunOverheated && this.gunHeat < gunCoolThreshold) {
+        gunOverheated = false;
+        console.log ("Cool!");
+      }
+    }
+  }
 
   function Hud (player) {
     this.pos_z = 1000;
@@ -414,16 +434,19 @@
   function Enemies () {
     this.enemies = [];  // reverse z-sorted for painting. Rebuilt for each frame.
     
-    function LateralPatrol (px, py, z, size_x) { // x and y relative to viewport size
-      var periodMs = 12000;
+    function LateralPatrol (px, py, z, size_x, start_ts, periodMs) { // x and y relative to viewport size
       this.positionAt = function (timestamp) {
+        var corrected_z = Math.round (z);
+        if (timestamp < start_ts + (periodMs/2)) {
+          corrected_z = Math.round (10000 - (((timestamp - start_ts)/(periodMs/2))*(10000-z)));
+        }
         var length = SCREEN_X - size_x;
         var offset = ((px*SCREEN_X)/length/2);
         var progress = ((timestamp + (offset*periodMs)) % periodMs)/periodMs;
         if (progress < 0.5) { // rightbound (0, 0.5) => (0, length)
-          return [Math.round(length*progress*2), SCREEN_Y*py, z];
+          return [Math.round(length*progress*2), Math.round(SCREEN_Y*py), corrected_z];
         } else {  // leftbound (0.5, 1) => (length, 0)
-          return [Math.round(length * (1-((progress-0.5)*2))), SCREEN_Y*py, z];
+          return [Math.round(length * (1-((progress-0.5)*2))), Math.round(SCREEN_Y*py), corrected_z];
         }
       }
     }
@@ -440,10 +463,10 @@
         return [x, y, z - 0.004*((x-(SCREEN_X/2))*(x-(SCREEN_X/2)))];
       }
     }
-    function Enemy () {
-      this.size_x = 64;
-      this.size_y = 64;
-      this.size_z = 16;
+    function Enemy (imgName, spriteSeq, size_x, size_y) {
+      this.size_x = size_x;
+      this.size_y = size_y;
+      this.size_z = 64;
 
       this.pos_x = 0;
       this.pos_y = 0;
@@ -451,9 +474,9 @@
       this.hit = 0;
 
       this.path = null;//new LateralPatrol (x, y, z, this.size_x);
-
-      this.sprite = new Sprite ("enemy_fly", this.size_x, this.size_y);
-      //this.sprite.seq = [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1];
+      
+      this.sprite = new Sprite (imgName, this.size_x, this.size_y);
+      this.sprite.seq = spriteSeq;
       this.sprite.animMs = 100;
       var timestamp=0;
 
@@ -523,36 +546,72 @@
           }
         }        
       }
-      this.onFinish = function (timestamp) { /* overload */ };
+      this.onFinish = null; /* overload */
     }
     var waves = [];
     
-    this.createWave = function (timestamp) {
+    this.createParabolicWave = function (level, timestamp) {
       var dy = Math.random ()-0.5;
       var wave = new Wave (timestamp);
-      for (var i=0; i<4; i++) {
-        var enemy = new Enemy ();
+      for (var i=0; i<(4+level); i++) {
+        var enemy = new Enemy ("enemy_fly", [0], 64, 64);
+        enemy.hp = 5;
         enemy.path = new ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
         wave.add (enemy);        
       }
       return wave;
     }
+    this.createLateralWave = function (level, timestamp) {
+      var wave = new Wave (timestamp);
+      var enemy = new Enemy ("enemy_tron", [0,1,2,3,4,5,6,7,8,9,8,7,6,5,4,3,2,1], 64, 64);
+      enemy.hp = 25 + (level * 15);
+      enemy.path = new LateralPatrol (Math.random (), Math.random ()*0.9, 1500 - (Math.random()*500), enemy.size_x, timestamp, 12000);
+      wave.add (enemy);
+      return wave;
+    }
+    this.createBossWave = function (level, timestamp) {
+      var wave = new Wave (timestamp);
+      var enemy = new Enemy ("boss", [0,1], 1800, 240);
+      enemy.hp = 200 + (level * 30);
+      enemy.path = new LateralPatrol (Math.random (), Math.random ()*0.9, 1500 - (Math.random()*500), enemy.size_x, timestamp, 24000);
+      wave.add (enemy);
+      return wave;
+    }
     this.move = function (player, enemyBullets, timestamp) {
       this.enemies = [];
       for (var i=0;i<waves.length;i++){
-        waves[i].move (player, this, enemyBullets, timestamp);
-        if (waves[i].finished) {
+        var wave = waves[i];
+        wave.move (player, this, enemyBullets, timestamp);
+        if (wave.finished) {
           waves.splice (i,1);
-          waves.onFinish (timestamp);
+          if (wave.onFinish) {
+            console.log ("finished wave");
+            wave.onFinish (timestamp);
+          };
         }
       }
     }
     this.startLevel = function (level, timestamp) {
-      waves.push (this.createWave (timestamp));
+      for (var i=0; i<waves.length; i++) { waves[i].onFinish = null; };
       var that = this;
-      waves.onFinish = function (ts) {waves.push (that.createWave (ts));};
-    }
-  }  
+      var waveLateral = this.createLateralWave (level, timestamp);
+      waveLateral.onFinish = function respawn (ts) {
+        var wave = that.createLateralWave (level, ts);
+        wave.onFinish = respawn;
+        waves.push (wave);
+      }; // null to not respawn
+      var waveParabolic = this.createParabolicWave (level, timestamp);
+      waveParabolic.onFinish = function respawnParabolic (ts) {
+        var wave = that.createParabolicWave (level, ts);
+        wave.onFinish = respawnParabolic;
+        waves.push (wave);
+      }
+      waves.push (waveLateral);
+      waves.push (waveParabolic);
+      //var waveBoss = that.createBossWave (level, timestamp);
+      //waves.push (waveBoss);
+    }  
+  }
 
   function FX () {
     this.fx = [];
@@ -627,7 +686,7 @@
     var touchSpeed = [0, 0];
     
     var onTouchStart = function (event) {
-      pressed = pressed | FIRE;
+      pressed = pressed | (event.touches.length > 1? FIRE : 0);
       event.preventDefault ();
     }
     var onTouchEnd = function (event) {
@@ -636,8 +695,18 @@
       event.preventDefault ();
     }    
     var onTouchMove = function (event) {
-      var touch = event.touches[0];
-      pressed = FIRE;
+      var touch = null;
+      if (event.changedTouches.length == 1) {
+        touch = event.changedTouches[0];
+      } else {
+        var maxDistance = 0;
+        for (var i=0; i<event.changedTouches.length; i++){
+          var current = event.changedTouches[i];
+          var dist = Utils.distance (current.clientX, clientX, current.clientY, clientY);
+          if (dist > maxDistance) { maxDistance = dist; touch = current; }
+        }
+      }
+      pressed = event.touches.length > 1? FIRE : 0;
       touchSpeed[0] = touch.clientX - clientX;
       if (touchSpeed[0] < 0) { pressed = (pressed | LEFT) & ~RIGHT; }
       else if (touchSpeed[0] > 0) { pressed = (pressed | RIGHT) & ~LEFT; }
@@ -721,7 +790,7 @@
         var hitsToAdvance = 250;
         this.current++;
         if (this.current==hitsToAdvance){
-          startLevel (timestamp, (levels.level+1) % levels.levels.length);
+          startLevel (timestamp, (levels.level+1));
           this.current =  0;        
         }
       },
@@ -730,19 +799,20 @@
     var startLevel = function (timestamp, level) {
       if (!level) { level = 0; };
       levels.level = level;
-      enemies.startLevel (0, timestamp);
-      window.requestAnimationFrame(render);
+      enemies.startLevel (level, timestamp);
     }
     
     var draw = function (timestamp) {
       var canvas = document.getElementById("canvas");
       if (canvas.getContext) {
+        var level = levels.levels [levels.level % levels.levels.length];
         var ctx = canvas.getContext("2d");
         ctx.fillStyle = "rgb(0,0,0)";
         ctx.fillRect(0, 0, SCREEN_X, SCREEN_Y);
-        levels.levels[levels.level].drawBackground (ctx);
-        grid.drawGrid (ctx, levels.levels[levels.level].gridColor, player);
+        level.drawBackground (ctx);
+        grid.drawGrid (ctx, level.gridColor, player);
         drawObjects (ctx, timestamp);
+        drawInfo (ctx, timestamp);
       }
     }
     
@@ -797,6 +867,33 @@
       }
     }
     
+    var drawInfo = function (ctx, timestamp) {
+      var level = levels.levels [levels.level % levels.levels.length];
+      ctx.font         = '32px LazenbyCompSmooth';
+      ctx.fillStyle = level.gridColor;
+      ctx.textBaseline = 'top';
+      ctx.fillText  ('000000', 0, 0);
+      
+      var heatCenter = [SCREEN_X-32,32]
+      ctx.beginPath ();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = player.isGunOverheated()? "red" : "lime";
+      ctx.arc(heatCenter[0], heatCenter[1], 16, -0.5*Math.PI, -0.5*Math.PI+(player.gunHeat)*2*Math.PI);
+      ctx.stroke();
+      if (player.gunHeat > 0.75){
+        ctx.beginPath();
+        ctx.strokeStyle = "red";
+        ctx.arc(heatCenter[0], heatCenter[1], 16, Math.PI, Math.PI + (Math.PI/2*(player.gunHeat-0.75)/0.25))
+        ctx.stroke();
+        if (player.isGunOverheated()){
+          ctx.fillStyle = "red";
+          ctx.textBaseLine = "middle";
+          ctx.font         = '16px LazenbyCompSmooth';
+          ctx.fillText ("H", heatCenter[0]-5, heatCenter[1]-8);
+        }
+      }
+    }
+    
     var controlPlayer = function() {
       if (control.isLeftPressed ()) {
         player.moveLeft (- control.getXSpeed ());
@@ -813,8 +910,15 @@
         player.moveDown (control.getYSpeed ());
       }
       if (control.isFirePressed ()) {
-        sound.shot (0.5);
-        playerBullets.fire (player);
+        if (! player.isGunOverheated ()){
+          sound.shot (0.5);
+          playerBullets.fire (player);
+          player.gunHeatUp ();
+        } else {
+          player.gunHeatDown ();
+        }
+      } else {
+        player.gunHeatDown ();
       }
     }
     
@@ -850,15 +954,15 @@
         for (var j=0; j<enemies.enemies.length; j++) {
           var enemy = enemies.enemies[j];
           if (bullet != null && enemy.status == enemy.statuses.ALIVE) {
-            if (Utils.collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_size,//bullet_speed,
+            if (Utils.collisionBox3D (bullet[0], bullet[1], bullet[2], playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_size,//bullet_speed, 
                           enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, enemy.size_z)){
               if (Utils.collisionSprite (bullet[0], bullet[1], playerBullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
                 playerBullets.bullets[i] = null;
                 enemy.hit (timestamp);
                 if (enemy.status == enemy.statuses.ALIVE) {
-                  fx.smallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, bullet[2], timestamp);
+                  fx.smallExplosion (bullet[0]+playerBullets.bullet_size/2, bullet[1]+playerBullets.bullet_size/2, enemy.pos_z, timestamp);
                 } else {
-                  sound.hit (1 - enemy.pos_z / 3000); // TODO: move to var
+                  sound.hit (1 - (Math.min (enemy.pos_z, 3000) / 3000)); // TODO: move to var
                   fx.bigExplosion (enemy.pos_x+(enemy.size_x/2), enemy.pos_y+(enemy.size_y/2), bullet[2], timestamp, 500);
                 }
                 score.hit (timestamp);
@@ -920,7 +1024,8 @@
       //window.addEventListener('orientationchange', setSize, false);
       //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
       window.addEventListener('orientationchange', setSize, false);
-      window.requestAnimationFrame(startLevel);
+      startLevel (window.performance.now());
+      window.requestAnimationFrame(render);
     }
   }
 
