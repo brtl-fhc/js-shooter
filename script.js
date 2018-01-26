@@ -60,7 +60,7 @@
       return false;
     },
     distance: function distance (x1, y1, x2, y2) { return Math.sqrt (((x2-x1)*(x2-x1))+((y2-y1)*(y2-y1))) },
-    imageCache: new ImageCache ()
+    imageCache: new ImageCache (),
   }
   
   function ImageCache (){
@@ -132,19 +132,37 @@
     this.animMs = 0;
     var anim_timestamp = 0;
     
-    this.drawSprite = function (ctx, p1, p4, ts) {
+    this.drawSprite = function (ctx, p1, p4, ts, optTint) {
       var offsetX = this.seq[this.state]*this.width;
       var offsetY = 0;
       if (ts - anim_timestamp >= this.animMs){
         this.state = (this.state + 1) % this.seq.length;    
         anim_timestamp = ts;
       }
-      ctx.drawImage(Utils.imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+      if (!optTint){
+        ctx.drawImage(Utils.imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
+      }else{
+          var tmpCanvas = document.createElement ("canvas");
+          tmpCanvas.setAttribute ("origin-clean", false);
+          var tmpCtx = tmpCanvas.getContext ("2d");
+          tmpCanvas.width = p4[0]-p1[0];
+          tmpCanvas.height = p4[1]-p1[1];
+          tmpCtx.drawImage(Utils.imageCache.images[this.image], offsetX, offsetY, this.width, this.height, 0, 0, p4[0]-p1[0], p4[1]-p1[1]);
+          tmpCtx.globalCompositeOperation = 'source-atop';
+          tmpCtx.fillStyle="rgb(224,224,224,"+optTint+")";
+          tmpCtx.fillRect(0,0,tmpCanvas.width, tmpCanvas.height);
+          ctx.drawImage(tmpCtx.canvas, p1[0], p1[1]);
+      }
     }
     this.draw = function(ctx, x, y, z, ts) {
       var p1 = Utils.project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
       var p4 = Utils.project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
       this.drawSprite (ctx, p1, p4, ts);
+    }
+    this.drawTinted = function(ctx, x, y, z, flash, ts) {
+      var p1 = Utils.project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
+      var p4 = Utils.project([x - SCREEN_X / 2  + this.width, y + this.height - SCREEN_Y / 2 , z]);
+      this.drawSprite (ctx, p1, p4, ts, flash);
     }
     this.drawScaled = function(ctx, x, y, z, size_x, size_y, ts) {
       var p1 = Utils.project([x - SCREEN_X / 2 , y - SCREEN_Y / 2 , z]);
@@ -471,7 +489,7 @@
       this.pos_x = 0;
       this.pos_y = 0;
       this.pos_z = 0;
-      this.hit = 0;
+      this.hitTimestamp = 0;
 
       this.path = null;//new LateralPatrol (x, y, z, this.size_x);
       
@@ -481,11 +499,13 @@
       var timestamp=0;
 
       this.draw = function (ctx, ts) { 
-  /*      var msSinceHit = ts - this.hit;
+        var msSinceHit = ts - this.hitTimestamp;
         var delay = 500;
-        ctx.fillStyle = msSinceHit < delay ? "rgb(255,"+(255*(1-msSinceHit/delay))+","+(255*(1-msSinceHit/delay))+")" : "red";
-        ctx.fillRect(p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);*/
-        this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
+        if (msSinceHit < delay) {
+          this.sprite.drawTinted (ctx, this.pos_x, this.pos_y, this.pos_z, (delay - msSinceHit)/delay, ts);
+        } else {
+          this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
+        }
       }
 
       var last_shot = 0;
@@ -495,7 +515,8 @@
       this.statuses = { ALIVE: 1, DEAD: 2, GONE: 3 };
       this.status = this.statuses.ALIVE;
       this.hp = 10;
-      this.hit = function (){
+      this.hit = function (ts){
+        this.hitTimestamp = ts;
         this.hp--; 
         if (this.hp<=0) {
           this.status = this.statuses.DEAD;
