@@ -75,6 +75,7 @@
       ["bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbullet.png?1512510809435", true],
       ["enemy_tron", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy.png?1512390585535", true],
       ["enemy_fly", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Ffly.png?1513691921972", true],
+      ["enemy_plane", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fbiplano-01.png?1517072922356", true],
       ["enemy_bullet", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fenemy_bullet.png?1512727629879", true],
       ["boss", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fboss-01(3).png?1516476725558", true],
       ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577", false],
@@ -149,7 +150,7 @@
           tmpCanvas.height = p4[1]-p1[1];
           tmpCtx.drawImage(Utils.imageCache.images[this.image], offsetX, offsetY, this.width, this.height, 0, 0, p4[0]-p1[0], p4[1]-p1[1]);
           tmpCtx.globalCompositeOperation = 'source-atop';
-          tmpCtx.fillStyle="rgb(224,224,224,"+optTint+")";
+          tmpCtx.fillStyle="rgba(224,224,224,"+optTint+")";
           tmpCtx.fillRect(0,0,tmpCanvas.width, tmpCanvas.height);
           ctx.drawImage(tmpCtx.canvas, p1[0], p1[1]);
       }
@@ -339,13 +340,13 @@
     this.gunHeatUp = function () { 
       this.gunHeat = Math.min (1, this.gunHeat + gunHeatUpDelta);
       gunOverheated = (this.gunHeat == 1);
-      if (gunOverheated) { console.log ("OVERHEAT!"); }
+      //if (gunOverheated) { console.log ("OVERHEAT!"); }
     }
     this.gunHeatDown = function () {
       this.gunHeat = Math.max (0, this.gunHeat - (gunOverheated? (gunHeatDownDelta/2) : gunHeatDownDelta));
       if (gunOverheated && this.gunHeat < gunCoolThreshold) {
         gunOverheated = false;
-        console.log ("Cool!");
+        //console.log ("Cool!");
       }
     }
   }
@@ -452,6 +453,12 @@
   function Enemies () {
     this.enemies = [];  // reverse z-sorted for painting. Rebuilt for each frame.
     
+    function StaticPatrol (px, py, z){
+      this.positionAt = function (){
+        return [Math.round(SCREEN_X*px), Math.round(SCREEN_Y*py), z];
+      }
+    }
+    
     function LateralPatrol (px, py, z, size_x, start_ts, periodMs) { // x and y relative to viewport size
       this.positionAt = function (timestamp) {
         var corrected_z = Math.round (z);
@@ -500,9 +507,9 @@
 
       this.draw = function (ctx, ts) { 
         var msSinceHit = ts - this.hitTimestamp;
-        var delay = 500;
+        var delay = 300;
         if (msSinceHit < delay) {
-          this.sprite.drawTinted (ctx, this.pos_x, this.pos_y, this.pos_z, (delay - msSinceHit)/delay, ts);
+          this.sprite.drawTinted (ctx, this.pos_x, this.pos_y, this.pos_z, (delay - msSinceHit)/delay*0.85, ts);
         } else {
           this.sprite.draw (ctx, this.pos_x, this.pos_y, this.pos_z, ts);
         }
@@ -578,6 +585,16 @@
         var enemy = new Enemy ("enemy_fly", [0], 64, 64);
         enemy.hp = 5;
         enemy.path = new ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        wave.add (enemy);        
+      }
+      return wave;
+    }
+    this.createStaticWave = function (level, timestamp) {
+      var wave = new Wave (timestamp);
+      for (var i=0; i<(1); i++) {
+        var enemy = new Enemy ("enemy_plane", [0], 450, 256);
+        enemy.hp = 2500;
+        enemy.path = new StaticPatrol (0.4, 0.6, 1200); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
         wave.add (enemy);        
       }
       return wave;
