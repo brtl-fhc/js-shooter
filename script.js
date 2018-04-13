@@ -60,6 +60,25 @@
       return false;
     },
     distance: function distance (x1, y1, x2, y2) { return Math.sqrt (((x2-x1)*(x2-x1))+((y2-y1)*(y2-y1))) },
+    setSize: function () {
+      var ctx = document.getElementById("canvas").getContext("2d");
+      
+      var ww=window.innerWidth;
+      var wh=window.innerHeight;
+      
+      var pref_w = 800;
+      var pref_h = 400;
+      
+      if (ww / pref_w < wh / pref_h){
+        SCREEN_X = Math.min (pref_w, window.innerWidth);
+        SCREEN_Y = SCREEN_X / 2;
+      } else {
+        SCREEN_Y = Math.min (pref_h, window.innerHeight);
+        SCREEN_X = SCREEN_Y * 2;
+      }
+      ctx.canvas.width = SCREEN_X
+      ctx.canvas.height = SCREEN_Y;
+    },
     imageCache: new ImageCache (),
   }
   
@@ -704,7 +723,7 @@
     var FIRE = 16;
     
     var getDir = function (code) {
-      return code == 37 ? LEFT : code == 38 ? UP : code == 39 ? RIGHT : code == 40 ? DOWN : code == 32 ? FIRE : null;
+      return code == 37 ? LEFT : code == 38 ? UP : code == 39 ? RIGHT : code == 40 ? DOWN : (code == 32 || code == 17) ? FIRE : null;
     }
     var getOpposite = function (dir) {
       return dir == LEFT ? RIGHT : dir == UP ? DOWN : dir == RIGHT ? LEFT : dir == DOWN ? UP : null;
@@ -762,6 +781,16 @@
       //canvas.addEventListener('mousedown', onTouchStart, false);
       canvas.addEventListener('touchmove', onTouchMove, false);
       canvas.addEventListener('touchend', onTouchEnd, false);
+      //canvas.addEventListener('mouseup', onTouchEnd, false);
+    }
+    this.disable = function () {
+      var canvas = document.getElementById("canvas");
+      window.removeEventListener('keyup', onKeyUp, false);
+      window.removeEventListener('keydown', onKeyDown, false);
+      canvas.removeEventListener('touchstart', onTouchStart, false);
+      //canvas.addEventListener('mousedown', onTouchStart, false);
+      canvas.removeEventListener('touchmove', onTouchMove, false);
+      canvas.removeEventListener('touchend', onTouchEnd, false);
       //canvas.addEventListener('mouseup', onTouchEnd, false);
     }
     this.isLeftPressed = function(){ return pressed & LEFT }
@@ -1035,38 +1064,54 @@
       window.requestAnimationFrame(render);
     }
     
-    var setSize = function () {
-      var ctx = document.getElementById("canvas").getContext("2d");
-      
-      var ww=window.innerWidth;
-      var wh=window.innerHeight;
-      
-      var pref_w = 800;
-      var pref_h = 400;
-      
-      if (ww / pref_w < wh / pref_h){
-        SCREEN_X = Math.min (pref_w, window.innerWidth);
-        SCREEN_Y = SCREEN_X / 2;
-      } else {
-        SCREEN_Y = Math.min (pref_h, window.innerHeight);
-        SCREEN_X = SCREEN_Y * 2;
-      }
-      ctx.canvas.width = SCREEN_X
-      ctx.canvas.height = SCREEN_Y;
-    }
-    
     this.start = function () {
       control.enable ();
-      setSize ();
+      Utils.setSize ();
       //window.addEventListener('resize', setSize, false);
       //window.addEventListener('orientationchange', setSize, false);
       //window.addEventListener ("touchstart", function init_audio() {sound.shot ();window.removeEventListener (init_audio);}, false);
-      window.addEventListener('orientationchange', setSize, false);
+      window.addEventListener('orientationchange', Utils.setSize, false);
       startLevel (window.performance.now());
+      window.requestAnimationFrame(render);
+    }
+  }
+
+  function Menu () {
+    var grid = new Grid ();
+    var start_ts = 0;
+    var render = function (timestamp) {
+      if (!start_ts) { start_ts = timestamp; }
+      grid.move ();
+      var canvas = document.getElementById("canvas");
+      if (!canvas.getContext) {
+        return;
+      }
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "rgb(0,0,0)";
+      ctx.fillRect(0, 0, SCREEN_X, SCREEN_Y);
+      grid.drawGrid (ctx, "green", {pos_y: SCREEN_Y});
+      ctx.font         = '48px LazenbyCompSmooth';
+      ctx.strokeStyle = "lime";
+      ctx.fillStyle = "lime";
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = "center";
+      ctx.strokeText  ('-= G r i d  F o r c e =-', SCREEN_X/2, SCREEN_Y/3);
+      if ((timestamp-start_ts)%1500 < 750){
+        ctx.font         = '24px LazenbyCompSmooth';
+        ctx.strokeText  ('F i r e  t o  s t a r t', SCREEN_X/2, 2*SCREEN_Y/3);
+      }
+      window.requestAnimationFrame(render);
+    }
+    
+    this.start = function () {
+      grid.speed = 4;
+      Utils.setSize();
+      window.addEventListener('orientationchange', Utils.setSize, false);
       window.requestAnimationFrame(render);
     }
   }
 
   (function start() {
     new Game().start ();
+    //new Menu().start ();
   })()
