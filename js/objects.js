@@ -5,16 +5,16 @@ GridForce.Sprite = function (imgName, w, h){
     this.width = w;
     this.height = h;
     this.seq = [0];
-    this.state = 0;
-    this.animMs = 0;
-    var anim_timestamp = 0;
+    this.currentFrame = 0;
+    this.frameDurationMs = 0;
+    var drawTimestamp = 0;
     
     this.drawSprite = function (ctx, p1, p4, ts, optTint) {
-      var offsetX = this.seq[this.state]*this.width;
+      var offsetX = this.seq[this.currentFrame]*this.width;
       var offsetY = 0;
-      if (ts - anim_timestamp >= this.animMs){
-        this.state = (this.state + 1) % this.seq.length;    
-        anim_timestamp = ts;
+      if (ts - drawTimestamp >= this.frameDurationMs){
+        this.currentFrame = (this.currentFrame + 1) % this.seq.length;    
+        drawTimestamp = ts;
       }
       if (!optTint){
         ctx.drawImage(GridForce.Utils.imageCache.images[this.image], offsetX, offsetY, this.width, this.height, p1[0], p1[1], p4[0]-p1[0], p4[1]-p1[1]);
@@ -52,7 +52,7 @@ GridForce.Sprite = function (imgName, w, h){
       this.drawSprite (ctx, p1, p4, ts);
     }
     this.getMaskPixel = function (x, y) {
-      var offsetX = this.seq[this.state]*this.width;
+      var offsetX = this.seq[this.currentFrame]*this.width;
       var offsetY = 0;
       return GridForce.Utils.imageCache.getMaskPixel (this.image, x, y);
     }
@@ -72,7 +72,7 @@ GridForce.Player = function (){
     
     this.sprite = new GridForce.Sprite ("player", this.size_x, this.size_y);
     this.sprite.seq = [1];//[1,1,2,2];
-    this.sprite.animMs = 50;
+    this.sprite.frameDurationMs = 50;
     this.statuses = {STATUS_ALIVE: 1, STATUS_DEAD: 2, STATUS_INTRO: 3, STATUS_GHOST: 4};
     this.status = this.statuses.STATUS_INTRO;
     
@@ -269,7 +269,7 @@ GridForce.Enemy = function (imgName, spriteSeq, size_x, size_y) {
       
       this.sprite = new GridForce.Sprite (imgName, this.size_x, this.size_y);
       this.sprite.seq = spriteSeq;
-      this.sprite.animMs = 100;
+      this.sprite.frameDurationMs = 100;
       var timestamp=0;
 
       this.draw = function (ctx, ts) { 
@@ -349,14 +349,14 @@ GridForce.FX = function () {
       var newFX = new Effect (x, y, z, ts, 100);
       newFX.sprite = new GridForce.Sprite ("explosion", 128, 128);
       newFX.sprite.seq = [2, 1, 1, 1, 0];
-      newFX.sprite.animMs = 100 / (newFX.sprite.seq.length-1);
+      newFX.sprite.frameDurationMs = 100 / (newFX.sprite.seq.length-1);
       this.addFX (newFX);
     }
     this.bigExplosion = function (x, y, z, ts, durationMs){
       var newFX = new Effect (x, y, z, ts, durationMs);
       newFX.sprite = new GridForce.Sprite ("explosion", 128, 128);
       newFX.sprite.seq = [2,2,3,4,5,6,7,8,9];
-      newFX.sprite.animMs = durationMs / (newFX.sprite.seq.length-1);
+      newFX.sprite.frameDurationMs = durationMs / (newFX.sprite.seq.length-1);
       this.addFX (newFX);
     }
     
