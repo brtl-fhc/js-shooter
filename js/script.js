@@ -155,62 +155,41 @@ GridForce.Game = function () {
         ctx.fillRect(0, 0, GridForce.SCREEN_X, GridForce.SCREEN_Y);
         level.drawBackground (ctx);
         grid.drawGrid (ctx, level.gridColor, player);
-        drawObjects (ctx, timestamp);
+        //drawObjects (ctx, timestamp);
+        drawScene ([[hud, player], playerBullets.bullets, enemyBullets.bullets, enemies.enemies, fx.fx], ctx, timestamp);
         drawInfo (ctx, timestamp);
       }
     }
     
-    var drawObjects = function (ctx, timestamp) {
-      var curr_bullet = 0;
-      var curr_enemy_bullet = 0;
-      var curr_enemy = 0;
-      var curr_player = 0;
-      var curr_fx = 0;
-       
-      var obj_player = [hud, player];
+    var drawScene = function (objectLists, ctx, timestamp) {
+      var cursors = [];
+      for (var i=0; i<objectLists.length; i++) { cursors[i] = 0; }
       
-      var z = 10000; // bullet_max_depth
-      var z_limit = 0;
-       
-      while (true){
-        var z_bullet = ((curr_bullet < playerBullets.bullets.length) && playerBullets.bullets[curr_bullet]!=null) ? playerBullets.bullets[curr_bullet].pos_z : z_limit;
-        var z_enemy_bullet = curr_enemy_bullet < enemyBullets.bullets.length ? enemyBullets.bullets[curr_enemy_bullet].pos_z:z_limit;
-        var z_player = curr_player < obj_player.length? obj_player [curr_player].pos_z : z_limit;
-        var z_enemy = curr_enemy < enemies.enemies.length? enemies.enemies [curr_enemy].pos_z : z_limit;
-        var z_fx = curr_fx < fx.fx.length? fx.fx [curr_fx].pos_z : z_limit;
+      var done = false;
 
-        z = z_limit; 
-        var list = [z_fx, z_bullet, z_enemy_bullet, z_player, z_enemy];
-        for (var i = 0; i<list.length; i++) { if (! isNaN (list[i])) { z = Math.max (list[i], z); }}
-
-        if (z <= z_limit){
-          break;
+      while (!done) {
+        var furthest_z = 0;
+        for (var i=0; i< objectLists.length; i++) {
+          var object = objectLists[i][cursors[i]];
+          while (!object && cursors[i] < objectLists[i].length) {
+            cursors[i]++;
+            object = objectLists[i][cursors[i]];
+          }
+          if (object) {
+            furthest_z = Math.max (furthest_z, object.pos_z);
+          }
         }
-        if (z_bullet == z) {
-          playerBullets.draw (ctx, curr_bullet, timestamp);
-          do {
-            curr_bullet++
-          }while (curr_bullet<playerBullets.bullets.length && playerBullets.bullets[curr_bullet]==null);
+        for (var i=0; i< objectLists.length; i++) {
+          var object = objectLists[i][cursors[i]];
+          if (object && object.pos_z == furthest_z) {
+            object.draw (ctx, timestamp);
+            cursors[i]++;
+          }
         }
-        if (z_enemy_bullet == z) {
-          enemyBullets.bullets [curr_enemy_bullet].draw (ctx, timestamp);
-          do {
-            curr_enemy_bullet++
-          }while (curr_enemy_bullet<enemyBullets.bullets.length && enemyBullets.bullets[curr_enemy_bullet]==null);
-        }
-
-        if (z_player == z) {
-          obj_player[curr_player++].draw (ctx, timestamp);
-        }
-        if (z_enemy == z) {
-          enemies.enemies [curr_enemy++].draw (ctx, timestamp);
-        }
-        if (z_fx == z) {
-          fx.fx[curr_fx++].draw (ctx, timestamp);
-        }
+        done = (furthest_z == 0);
       }
     }
-    
+
     var infoText = {
       active: 0,
       font: "32px LazenbyCompSmooth",

@@ -186,17 +186,17 @@ GridForce.PlayerBullets = function () {
       this.size_y = bullet_size;
       this.size_z = bullet_size;
       this.sprite = sprite;
+      
+      this.draw = function draw (ctx) {
+        var p1 = GridForce.Utils.project([this.pos_x - GridForce.SCREEN_X / 2, this.pos_y - GridForce.SCREEN_Y / 2, this.pos_z]);
+        var brightness = parseInt(255 * (bullet_max_depth - this.pos_z) / bullet_max_depth, 10);
+        ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
+        ctx.fillRect(p1[0], p1[1], this.size_x, this.size_y);
+      }
     }
     
     this.bullets = [];  // reverse sorted by Z
-        
-    this.draw = function draw (ctx, i) {
-      var bullet = this.bullets[i];
-      var p1 = GridForce.Utils.project([bullet.pos_x - GridForce.SCREEN_X / 2, bullet.pos_y - GridForce.SCREEN_Y / 2, bullet.pos_z]);
-      var brightness = parseInt(255 * (bullet_max_depth - bullet.pos_z) / bullet_max_depth, 10);
-      ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
-      ctx.fillRect(p1[0], p1[1], bullet.size_x, bullet.size_y);
-    }
+
     this.move = function move () {
       for (var i = 0; i < this.bullets.length; i++) {
         if (this.bullets[i]!=null){
