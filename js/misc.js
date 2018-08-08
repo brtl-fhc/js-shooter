@@ -18,18 +18,9 @@ GridForce.ImageCache = function (){
       ["explosion", "https://cdn.glitch.com/20479d99-08a6-4766-8f07-0a219aee615a%2Fexplosion_spritesheet_for_games_by_gintasdx-d5r28q5.png?1511453650577", false],
     ]
     
-    var convertImageToCanvas = function (image) {
-      var canvas = document.createElement("canvas");
-      canvas.setAttribute ("origin-clean", false);
-      canvas.width = image.width;
-      canvas.height = image.height;
-      canvas.getContext("2d").drawImage(image, 0, 0);
-      return canvas;
-    }
-
     var calculateMask = function (name, img){
       var image = img;
-      var canvas = convertImageToCanvas (image);
+      var canvas = GridForce.Utils.convertImageToCanvas (image);
       var data = canvas.getContext ("2d").getImageData (0,0,canvas.width, canvas.height).data;
       var mask = []
       for (var i=0; i<data.length/4; i++){
@@ -43,21 +34,24 @@ GridForce.ImageCache = function (){
     }
     this.load = function (name, url, solid){
       var img = new Image ();
+      var that = this;
       img.crossOrigin = "Anonymous";
-      this.images[name] = img;
       img.src = url;
       img.onload = function () { 
-        loaded.push(name);
-        if (solid) {
-          calculateMask(name, img);
-        }
+        that.add (name, img, solid);
       }
     }
-    
+    this.add = function (name, image, solid) {
+      this.images[name] = image;
+      loaded.push(name);
+      if (solid) {
+        calculateMask(name, image);
+      }
+    }
     this.done = function () { return (loaded.length == assets.length); }
         
     for (var i=0; i<assets.length; i++) { 
-      this.load (assets[i][0], assets[i][1], assets[i][2], assets[i][3]);
+      this.load (assets[i][0], assets[i][1], assets[i][2]);
     }
   };
 
@@ -69,12 +63,34 @@ GridForce.Utils = {
       ];
       return ret;
     },
-    addToPaint: function addToPaint (list, item){
+    addToPaintLinear: function addToPaintLinear (list, item){
+      // Deprecated
       var zOrder = 0;
       while (zOrder < list.length && list[zOrder].pos_z>item.pos_z){
         zOrder++;
       }
       list.splice (zOrder, 0, item);  // in-order insert
+    },
+    addToPaint: function addToPaint (list, item){
+      // Tested at http://jsfiddle.net/RMh78/471/
+      if (list.length == 0){
+      	list.push (item);
+        return list;
+      }
+      var start = 0;
+      var end = list.length;
+ 
+      while (end - start > 1){
+        var middle = Math.floor ((start + end) / 2);
+        if ( list[middle].pos_z > item.pos_z ) {
+        	start = middle;
+        } else {
+        	end = middle;
+        }
+      }
+      var index = list[start].pos_z < item.pos_z? start : start +1; 
+      list.splice (index, 0, item);  // in-order insert
+      return list;
     },
     collisionBox3D: function collisionBox3D (x1, y1, z1, w1, h1, d1, x2, y2, z2, w2, h2, d2) {
         // improved with http://jsfiddle.net/h5qba8v9/3/
@@ -117,7 +133,25 @@ GridForce.Utils = {
       }      
       return false;
     },
+    isCollision: function isCollision (o1, o2) {
+      return this.collisionBox3D (
+                                    o1.pos_x, o1.pos_y, o1.pos_z, o1.size_x, o1.size_y, o1.size_z, 
+                                    o2.pos_x, o2.pos_y, o2.pos_z, o2.size_x, o2.size_y, o2.size_z)
+      && this.collisionSprite (
+                                    o1.pos_x, o1.pos_y, o1.sprite,
+                                    o2.pos_x, o2.pos_y, o2.sprite);
+    },
     distance: function distance (x1, y1, x2, y2) { return Math.sqrt (((x2-x1)*(x2-x1))+((y2-y1)*(y2-y1))) },
+  
+    convertImageToCanvas: function convertImageToCanvas (image) {
+      var canvas = document.createElement("canvas");
+      canvas.setAttribute ("origin-clean", false);
+      canvas.width = image.width;
+      canvas.height = image.height;
+      canvas.getContext("2d").drawImage(image, 0, 0);
+      return canvas;
+    },
+  
     setSize: function () {
       var ctx = document.getElementById("canvas").getContext("2d");
       

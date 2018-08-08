@@ -83,7 +83,7 @@ GridForce.Enemies = function () {
       for (var i=0; i<(4+level); i++) {
         var enemy = new GridForce.Enemy ("enemy_fly", [0], 64, 64);
         enemy.hp = 5;
-        enemy.path = new GridForce.Patrol.ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        enemy.path = new GridForce.Patrol.ParabolicPatrol (Math.random ()*0.8, dy, 1000, timestamp+(i*500), (Math.round(timestamp)%2)>0);
         wave.add (enemy);        
       }
       return wave;
@@ -93,7 +93,7 @@ GridForce.Enemies = function () {
       for (var i=0; i<(1); i++) {
         var enemy = new GridForce.Enemy ("enemy_plane", [0], 450, 256);
         enemy.hp = 2500;
-        enemy.path = new GridForce.Patrol.StaticPatrol (0.4, 0.6, 1200); //new LateralPatrol (0, 0.5, 1200, enemy.size_x);
+        enemy.path = new GridForce.Patrol.StaticPatrol (0.4, 0.6, 1200);
         wave.add (enemy);        
       }
       return wave;

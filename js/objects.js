@@ -174,22 +174,28 @@ GridForce.Hud = function (player) {
 GridForce.PlayerBullets = function () {
     var bullet_max_depth = 10000;
     this.bullet_speed = 50;
-    this.bullet_size = 3;
+
+    var bullet_size = 3;
+    var sprite = new GridForce.Sprite ("bullet", bullet_size, bullet_size); 
+
     var PlayerBullet = function (x, y, z) {
       this.pos_x = x;
       this.pos_y = y;
       this.pos_z = z;
+      this.size_x = bullet_size;
+      this.size_y = bullet_size;
+      this.size_z = bullet_size;
+      this.sprite = sprite;
     }
+    
     this.bullets = [];  // reverse sorted by Z
-    
-    this.sprite = new GridForce.Sprite ("bullet", this.bullet_size, this.bullet_size);
-    
+        
     this.draw = function draw (ctx, i) {
       var bullet = this.bullets[i];
       var p1 = GridForce.Utils.project([bullet.pos_x - GridForce.SCREEN_X / 2, bullet.pos_y - GridForce.SCREEN_Y / 2, bullet.pos_z]);
       var brightness = parseInt(255 * (bullet_max_depth - bullet.pos_z) / bullet_max_depth, 10);
       ctx.fillStyle = "rgb(" + brightness + ", " + brightness + ", " + brightness + ")";
-      ctx.fillRect(p1[0], p1[1], this.bullet_size, this.bullet_size);
+      ctx.fillRect(p1[0], p1[1], bullet.size_x, bullet.size_y);
     }
     this.move = function move () {
       for (var i = 0; i < this.bullets.length; i++) {

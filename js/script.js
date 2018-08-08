@@ -325,12 +325,10 @@ GridForce.Game = function () {
       if (player.status != player.statuses.STATUS_ALIVE) { return; }
       for (var i=0; i < enemyBullets.bullets.length; i++){
         var bullet = enemyBullets.bullets[i];
-        if (GridForce.Utils.collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z-bullet.speed_z, bullet.size_x, bullet.size_y, bullet.size_z,//bullet.speed_z,
-            player.pos_x, player.pos_y, player.pos_z, player.size_x, player.size_y, player.size_z)){
-          if (GridForce.Utils.collisionSprite (bullet.pos_x, bullet.pos_y, bullet.sprite, player.pos_x, player.pos_y, player.sprite)){
+        if (GridForce.Utils.isCollision (bullet, player)){
             killPlayer(timestamp);
             return;
-          }
+          
         }
       }
       for (var i=0; i< playerBullets.bullets.length; i++){
@@ -338,9 +336,7 @@ GridForce.Game = function () {
         for (var j=0; j<enemies.enemies.length; j++) {
           var enemy = enemies.enemies[j];
           if (bullet != null && enemy.status == enemy.statuses.ALIVE) {
-            if (GridForce.Utils.collisionBox3D (bullet.pos_x, bullet.pos_y, bullet.pos_z, playerBullets.bullet_size, playerBullets.bullet_size, playerBullets.bullet_size,//bullet_speed, 
-                          enemy.pos_x, enemy.pos_y, enemy.pos_z, enemy.size_x, enemy.size_y, enemy.size_z)){
-              if (GridForce.Utils.collisionSprite (bullet.pos_x, bullet.pos_y, playerBullets.sprite, enemy.pos_x, enemy.pos_y, enemy.sprite)){
+            if (GridForce.Utils.isCollision (bullet, enemy)){
                 playerBullets.bullets[i] = null;
                 enemy.hit (timestamp);
                 if (enemy.status == enemy.statuses.ALIVE) {
@@ -350,7 +346,6 @@ GridForce.Game = function () {
                   fx.bigExplosion (enemy.pos_x+(enemy.size_x/2), enemy.pos_y+(enemy.size_y/2), bullet.pos_z, timestamp, 500);
                 }
                 score.hit (timestamp);
-              }
             }
           }          
         }
